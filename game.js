@@ -6,13 +6,16 @@
   const outlineContext = outlineCanvas.getContext('2d');
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) { $('welcome').classList.add('hidden'); $('error').classList.remove('hidden'); return; }
-  const SIZE = 40, MAX_Y = 24, LEGACY_SAVE_KEY = 'little-block-world-v1';
+  const SIZE = 40, MAX_Y = 40, FLY_LIMIT = 38, LEGACY_SAVE_KEY = 'little-block-world-v1';
   const SAVE_PREFIX = 'little-block-world-v2:', AREA_META_KEY = 'little-block-world-area-v2';
   const areas = {
     cottage:{name:'小屋世界',icon:'⌂',hint:'小屋、樹木與池塘，替家添一點顏色。',idea:'替小屋蓋個花園或小陽台',sky:[.74,.88,.92],spawn:{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29},material:6},
     street:{name:'道路街景',icon:'▤',hint:'逛街、看車子，蓋出你喜歡的城市。',idea:'替街道蓋一間商店或公車站',sky:[.76,.87,.94],spawn:{x:20.5,y:6,z:35.5,yaw:0,pitch:-.45},material:16},
     volcano:{name:'火山口',icon:'▲',hint:'安全的岩漿與火山，出發去探險！',idea:'蓋一座觀景台或跨過岩漿的橋',sky:[.94,.80,.68],spawn:{x:20.5,y:17.5,z:28.5,yaw:0,pitch:-.83},material:18},
-    meadow:{name:'平坦草地',icon:'▱',hint:'一大片空白草地，全部交給你的想像。',idea:'從草地開始，蓋出自己的夢想小屋',sky:[.75,.90,.87],spawn:{x:20.5,y:3.722,z:29.5,yaw:0,pitch:-.4},material:6}
+    meadow:{name:'平坦草地',icon:'▱',hint:'一大片空白草地，全部交給你的想像。',idea:'從草地開始，蓋出自己的夢想小屋',sky:[.75,.90,.87],spawn:{x:20.5,y:3.722,z:29.5,yaw:0,pitch:-.4},material:6},
+    titanic:{name:'鐵達尼號',icon:'⚓',hint:'四座煙囪的大船！上甲板、蓋船艙。',idea:'替大船加一間船艙或漂亮的甲板',sky:[.73,.87,.94],spawn:{x:37.5,y:20,z:37.5,yaw:-.72,pitch:-.38},material:12},
+    cars:{name:'汽車世界',icon:'▰',hint:'賽道、停車場與彩色車子，打造車車樂園。',idea:'蓋一輛夢想車或自己的車庫',sky:[.77,.90,.91],spawn:{x:20.5,y:9,z:37.5,yaw:0,pitch:-.4},material:9},
+    taipei101:{name:'台北 101',icon:'▥',hint:'飛到高高的塔頂，看看城市與廣場！',idea:'替 101 蓋一座空中花園或新廣場',sky:[.76,.87,.94],spawn:{x:35.5,y:20,z:38.5,yaw:-.69,pitch:.12},material:20}
   };
   let currentArea = 'cottage';
   try { const last=localStorage.getItem(AREA_META_KEY);if(Object.hasOwn(areas,last))currentArea=last; } catch { /* Offline play works without storage. */ }
@@ -32,11 +35,12 @@
     { id:11,name:'屋瓦',color:'#df8f91' }, { id:12,name:'白磚',color:'#f5e8c9' },
     { id:13,name:'沙地',color:'#dcc39b' }, { id:14,name:'柏油',color:'#54646b' },
     { id:15,name:'岩漿',color:'#ff7b2c' }, { id:16,name:'紅磚',color:'#c66b54' },
-    { id:17,name:'窗框',color:'#a4d4dd' }, { id:18,name:'火山岩',color:'#64616c' }
+    { id:17,name:'窗框',color:'#a4d4dd' }, { id:18,name:'火山岩',color:'#64616c' },
+    { id:19,name:'定時炸彈',color:'#e85e55' }, { id:20,name:'青綠',color:'#438f88' }
   ];
-  const paletteGroups = {color:[1,3,5,6,7,8,9,4],building:[3,5,6,12,14,16,17,11],nature:[1,4,2,10,13,15,18]};
+  const paletteGroups = {color:[1,3,5,6,7,8,9,4],building:[3,5,6,12,14,16,17,11],nature:[1,4,2,10,13,15,18,20],fun:[19]};
   let paletteGroup='color';
-  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74],13:[.83,.73,.54],14:[.25,.31,.34],15:[1,.37,.07],16:[.75,.37,.27],17:[.60,.80,.84],18:[.32,.30,.36] };
+  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74],13:[.83,.73,.54],14:[.25,.31,.34],15:[1,.37,.07],16:[.75,.37,.27],17:[.60,.80,.84],18:[.32,.30,.36],19:[.91,.30,.26],20:[.22,.53,.49] };
   const voxels = new Uint8Array(SIZE * SIZE * MAX_Y);
   const index = (x,y,z) => x + SIZE * (z + SIZE * y);
   const inside = (x,y,z) => x>=0 && z>=0 && y>=0 && x<SIZE && z<SIZE && y<MAX_Y;
@@ -50,6 +54,8 @@
   const aimOffset = { x:0, y:0 };
   let falling = false, fallVelocity = 0, lastShiftPress = null, godView = null;
   let lastTime = 0;
+  const bombs = new Map(), bursts = [];
+  const BOMB_SECONDS = 10, BLAST_RADIUS = 2;
 
   const noise = (x,z) => (Math.sin(x*127.1+z*311.7)*43758.5453)%1;
   function terrain(x,z) {
@@ -150,20 +156,102 @@
     for(let z=25;z<=28;z++)for(let x=19;x<=21;x++)set(x,6+Math.floor((28-z)/2),z,3);
     for(const [x,z] of [[7,10],[31,7],[6,27],[32,30]])for(let y=3;y<6;y++)set(x,y,z,18);
   }
+  function box(x0,y0,z0,x1,y1,z1,type) {
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)set(x,y,z,type);
+  }
+  function makeTitanic() {
+    fillFlat(10);
+    // A toy ocean liner: tapered hull, open decks and four golden funnels.
+    for(let z=6;z<=33;z++) {
+      const half=z<10?2+Math.floor((z-6)/2):z>29?2+Math.floor((33-z)/2):5;
+      for(let x=20-half;x<=20+half;x++) {
+        for(let y=2;y<=6;y++)set(x,y,z,y<4?11:14);
+        set(x,7,z,3);
+        if(x===20-half||x===20+half)set(x,8,z,12);
+      }
+    }
+    for(let x=17;x<=23;x++)for(let z=11;z<=29;z++) {
+      for(let y=8;y<=10;y++)if(x===17||x===23||z===11||z===29) {
+        if(!(z===29&&(x===20||x===21)&&y<10))set(x,y,z,y===9&&z%3!==0?17:12);
+      }
+      set(x,11,z,3);
+    }
+    box(18,12,28,22,13,29,17);box(18,14,28,22,14,29,12);
+    for(const z of [12,17,22,26]){box(19,12,z,21,16,z+1,9);box(19,17,z,21,17,z+1,18);}
+    for(const z of [8,31]){box(20,8,z,20,19,z,3);box(18,15,z,22,15,z,3);}
+    for(const x of [15,25])for(const z of [13,19,25]){box(x,9,z,x,9,z+2,9);set(x,10,z+1,12);}
+    box(29,3,28,38,3,38,3);box(29,4,28,38,4,28,12);
+    for(let x=26;x<=30;x++)box(x,7-Math.floor((x-26)/2),29,x,7-Math.floor((x-26)/2),31,3);
+    for(const [x,z] of [[4,8],[7,28],[34,8]]){box(x,3,z,x+3,3,z+3,12);box(x+1,4,z+1,x+2,5,z+2,12);}
+  }
+  function makeCars() {
+    fillFlat();
+    for(let x=0;x<SIZE;x++)for(let z=0;z<SIZE;z++) {
+      const radius=Math.hypot((x-20)/16,(z-20)/12);
+      if(radius>.72&&radius<1.13)set(x,2,z,14);
+      if(radius>.87&&radius<.94&&(x+z)%6<3)set(x,2,z,12);
+      if(radius>1.13&&radius<1.22)set(x,2,z,(x+z)%2?12:11);
+    }
+    box(5,2,5,14,2,13,14);box(27,2,26,34,2,36,14);
+    for(const x of [5,9,13])box(x,2,5,x,2,13,12);
+    function car(x,z,color,length=5,tall=false) {
+      box(x,4,z,x+2,4,z+length-1,color);
+      for(const dx of [0,2])for(const dz of [1,length-2])set(x+dx,3,z+dz,18);
+      box(x,5,z+1,x+2,tall?6:5,z+length-2,17);
+      box(x, tall?7:6,z+1,x+2,tall?7:6,z+length-2,color);
+      for(const dx of [0,2]){set(x+dx,4,z,9);set(x+dx,4,z+length-1,7);}
+    }
+    car(19,24,9);car(7,6,7);car(11,6,8);car(29,28,16,7,true);car(4,19,12,6,true);car(32,16,20);
+    for(let x=16;x<=24;x++)for(let z=30;z<=31;z++)set(x,2,z,(x+z)%2?12:14);
+    box(16,3,30,16,8,30,16);box(24,3,30,24,8,30,16);
+    for(let x=16;x<=24;x++)set(x,9,30,x%2?12:14);
+    box(27,3,7,35,3,12,5);box(27,4,7,27,7,12,16);box(35,4,7,35,7,12,16);
+    box(27,4,7,35,7,7,16);box(27,8,7,35,8,12,9);
+    box(11,3,17,13,3,23,6);box(12,4,19,12,6,21,9);
+  }
+  function makeTaipei101() {
+    fillFlat(5);
+    for(let x=0;x<SIZE;x++)for(let z=0;z<SIZE;z++) {
+      if(x<6||x>32||z<5||z>33)set(x,2,z,14);
+      if((x===3||x===36)&&z%6<3)set(x,2,z,12);
+      if((z===2||z===36)&&x%6<3)set(x,2,z,12);
+    }
+    box(12,3,12,28,3,28,12);
+    box(15,4,15,25,6,25,20);box(14,7,14,26,7,26,12);
+    // Eight tiered sections echo the landmark's bamboo-shaped silhouette.
+    for(let tier=0;tier<8;tier++)for(let dy=0;dy<3;dy++) {
+      const half=dy===0?3:4,y=8+tier*3+dy;
+      box(20-half,y,20-half,20+half,y,20+half,dy===1?17:20);
+      for(const x of [20-half,20+half])for(const z of [20-half,20+half])set(x,y,z,20);
+    }
+    box(18,32,18,22,33,22,20);box(19,34,19,21,35,21,17);box(20,36,20,20,38,20,12);
+    box(19,4,23,21,5,25,0); // Walk into the mall entrance.
+    for(const [x,z,w,h,color] of [[7,7,4,8,6],[28,7,3,11,8],[7,26,4,6,16]]) {
+      box(x,3,z,x+w,3+h,z+w,color);
+      for(let y=5;y<3+h;y+=3)box(x,y,z,x+w,y,z+w,17);
+      box(x,4+h,z,x+w,4+h,z+w,12);
+    }
+    box(27,3,29,30,3,31,10);
+    for(const [x,z] of [[9,18],[30,18],[13,30],[25,30]]){box(x,3,z,x,5,z,3);box(x-1,6,z-1,x+1,7,z+1,4);}
+    for(let x=15;x<=25;x++)set(x,3,30,x%2?6:12);
+  }
   function makeWorld() {
     voxels.fill(0);
     if(currentArea==='cottage')makeCottage();
     else if(currentArea==='street')makeStreet();
     else if(currentArea==='volcano')makeVolcano();
+    else if(currentArea==='titanic')makeTitanic();
+    else if(currentArea==='cars')makeCars();
+    else if(currentArea==='taipei101')makeTaipei101();
     else fillFlat();
   }
 
   function saveKey(area=currentArea){return SAVE_PREFIX+area;}
   function snapshot() {
-    return {version:2,area:currentArea,changes:{...changes},built,colors:[...usedColors],achievements,selected,player:{...(godView?godView.player:player)},aim:{...(godView?godView.aim:aimOffset)}};
+    return {version:2,area:currentArea,changes:{...changes},bombs:[...bombs.values()].map(b=>({xyz:[...b.xyz],remaining:b.remaining})),built,colors:[...usedColors],achievements,selected,player:{...(godView?godView.player:player)},aim:{...(godView?godView.aim:aimOffset)}};
   }
   function validCamera(p) {
-    return p&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(p[k]))&&p.x>=.4&&p.x<=SIZE-.4&&p.z>=.4&&p.z<=SIZE-.4&&p.y>=MIN_EYE&&p.y<=18&&Math.abs(p.pitch)<=1.35&&!collides(p.x,p.y,p.z);
+    return p&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(p[k]))&&p.x>=.4&&p.x<=SIZE-.4&&p.z>=.4&&p.z<=SIZE-.4&&p.y>=MIN_EYE&&p.y<=FLY_LIMIT&&Math.abs(p.pitch)<=1.35&&!collides(p.x,p.y,p.z);
   }
 
   function loadSave() {
@@ -176,7 +264,10 @@
       if((legacy?saved.version!==1:saved.version!==2||saved.area!==currentArea)||!saved.changes||typeof saved.changes!=='object')return;
       for(const [key,type] of Object.entries(saved.changes)) {
         const xyz=key.split(',').map(Number);
-        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && type>=0 && type<=18) { set(...xyz,type); changes[key]=type; }
+        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && type>=0 && type<=20) { set(...xyz,type); changes[key]=type; }
+      }
+      if(Array.isArray(saved.bombs))for(const b of saved.bombs) {
+        if(b&&Array.isArray(b.xyz)&&b.xyz.length===3&&b.xyz.every(Number.isInteger)&&inside(...b.xyz)&&b.xyz[1]>0&&get(...b.xyz)===19&&Number.isFinite(b.remaining)&&b.remaining>0&&b.remaining<=BOMB_SECONDS)bombs.set(b.xyz.join(','),{xyz:[...b.xyz],remaining:b.remaining});
       }
       built=Number.isFinite(saved.built)?Math.min(100000,Math.max(0,saved.built)):0;
       usedColors=new Set(Array.isArray(saved.colors)?saved.colors.filter(t=>blocks.some(b=>b.id===t)):[]);
@@ -184,14 +275,14 @@
       if(blocks.some(b=>b.id===saved.selected))choose(saved.selected);
       if(validCamera(saved.player))Object.assign(player,saved.player);
       if(saved.aim&&Number.isFinite(saved.aim.x)&&Number.isFinite(saved.aim.y))positionAim(saved.aim.x,saved.aim.y);
-      if(session)history=session.history.map(item=>({...item,xyz:[...item.xyz]}));
+      if(session)history=session.history.map(cloneHistoryItem);
       $('save-status').textContent='● 已載入你的作品';
       if(legacy)saveNow();
     } catch { $('save-status').textContent='● 這次的作品暫不存檔'; }
   }
   function saveNow() {
     const raw=JSON.stringify(snapshot());
-    regionSessions.set(currentArea,{raw,history:history.map(item=>({...item,xyz:[...item.xyz]}))});
+    regionSessions.set(currentArea,{raw,history:history.map(cloneHistoryItem)});
     try {
       localStorage.setItem(saveKey(),raw);
       $('save-status').textContent='● 作品已存好';
@@ -210,7 +301,7 @@
   function switchArea(area) {
     if(!Object.hasOwn(areas,area)||area===currentArea)return;
     clearTimeout(saveTimer);saveNow();
-    currentArea=area;changes={};history=[];built=0;usedColors=new Set();achievements=0;
+    currentArea=area;changes={};history=[];bombs.clear();bursts.length=0;built=0;usedColors=new Set();achievements=0;
     makeWorld();home();choose(areas[area].material);$('save-status').textContent='● 新區域，開始創作吧';loadSave();dirty=true;hit=null;updateAreaUI();updateQuests();
     try{localStorage.setItem(AREA_META_KEY,area);}catch{/* In-memory area switching remains available. */}
     showToast('來到'+areas[area].name+'！作品會分開保存');
@@ -225,14 +316,15 @@
   try {
     program=gl.createProgram();
     gl.attachShader(program,compile(gl.VERTEX_SHADER,`
-      attribute vec3 aPosition; attribute vec3 aColor; attribute vec2 aUV; attribute float aKind;
+      attribute vec3 aPosition; attribute vec3 aColor; attribute vec2 aUV; attribute float aKind; attribute float aCountdown;
       uniform mat4 uVP; uniform vec3 uEye;
-      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind;
-      void main(){ gl_Position=uVP*vec4(aPosition,1.0); vColor=aColor; vUV=aUV; vKind=aKind; vDistance=distance(aPosition,uEye); }
+      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind; varying float vCountdown;
+      void main(){ gl_Position=uVP*vec4(aPosition,1.0); vColor=aColor; vUV=aUV; vKind=aKind; vCountdown=aCountdown; vDistance=distance(aPosition,uEye); }
     `));
     gl.attachShader(program,compile(gl.FRAGMENT_SHADER,`
       precision mediump float;
-      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind;
+      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind; varying float vCountdown;
+      uniform sampler2D uBombAtlas;
       uniform float uOutline;
       uniform vec2 uFogRange;
       uniform vec3 uSky; uniform float uTime;
@@ -244,6 +336,7 @@
         if(vKind>14.5&&vKind<15.5){float glow=.5+.5*sin(uTime*1.7+vUV.x*6.0+vUV.y*4.0);c=mix(vec3(1.0,.27,.04),vec3(1.0,.72,.14),glow*.65+n*.18);}
         if(vKind>15.5&&vKind<16.5){float seam=step(.09,fract(vUV.y*3.0))*step(.045,fract(vUV.x*2.0+floor(vUV.y*3.0)*.5));c=mix(vec3(.77,.69,.56),c,seam);}
         if(vKind>16.5&&vKind<17.5){float pane=step(.1,vUV.x)*step(.1,vUV.y)*step(vUV.x,.9)*step(vUV.y,.9);c=mix(vec3(.93,.91,.81),c,pane);}
+        if(vKind>18.5&&vKind<19.5)c=texture2D(uBombAtlas,vec2((floor(vCountdown+.5)+clamp(1.0-vUV.x,.01,.99))/12.0,clamp(vUV.y,.01,.99))).rgb;
         if(uOutline>.5)c=vec3(1.0,.93,.68);
         float fog=smoothstep(uFogRange.x,uFogRange.y,vDistance);
         gl_FragColor=vec4(mix(c,uSky,fog),1.0);
@@ -253,7 +346,22 @@
     if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
   } catch(error) { console.error(error); $('welcome').classList.add('hidden'); $('error').classList.remove('hidden'); return; }
   gl.useProgram(program);
-  const loc={ position:gl.getAttribLocation(program,'aPosition'), color:gl.getAttribLocation(program,'aColor'), uv:gl.getAttribLocation(program,'aUV'), kind:gl.getAttribLocation(program,'aKind'), vp:gl.getUniformLocation(program,'uVP'), eye:gl.getUniformLocation(program,'uEye'), outline:gl.getUniformLocation(program,'uOutline'), fog:gl.getUniformLocation(program,'uFogRange'),sky:gl.getUniformLocation(program,'uSky'),time:gl.getUniformLocation(program,'uTime') };
+  const loc={ position:gl.getAttribLocation(program,'aPosition'), color:gl.getAttribLocation(program,'aColor'), uv:gl.getAttribLocation(program,'aUV'), kind:gl.getAttribLocation(program,'aKind'), countdown:gl.getAttribLocation(program,'aCountdown'),atlas:gl.getUniformLocation(program,'uBombAtlas'),vp:gl.getUniformLocation(program,'uVP'), eye:gl.getUniformLocation(program,'uEye'), outline:gl.getUniformLocation(program,'uOutline'), fog:gl.getUniformLocation(program,'uFogRange'),sky:gl.getUniformLocation(program,'uSky'),time:gl.getUniformLocation(program,'uTime') };
+  // One offline canvas atlas puts readable countdown digits on every cube face.
+  const atlasCanvas=document.createElement('canvas');atlasCanvas.width=128*12;atlasCanvas.height=128;
+  const atlasContext=atlasCanvas.getContext('2d');
+  for(let n=0;n<12;n++) {
+    const left=n*128;atlasContext.fillStyle='#e85e55';atlasContext.fillRect(left,0,128,128);
+    atlasContext.fillStyle='#a73736';atlasContext.fillRect(left+7,7,114,114);
+    atlasContext.fillStyle='#fff1cb';atlasContext.fillRect(left+10,23,108,82);
+    atlasContext.textAlign='center';atlasContext.textBaseline='middle';atlasContext.fillStyle='#952e30';
+    atlasContext.font=n===11?'bold 58px sans-serif':'bold 76px monospace';atlasContext.fillText(n===11?'停':String(n),left+64,67);
+  }
+  const atlasTexture=gl.createTexture();gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,atlasTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,atlasCanvas);
+  for(const param of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,param,gl.CLAMP_TO_EDGE);
+  for(const param of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,param,gl.LINEAR);
+  gl.uniform1i(loc.atlas,0);
   const mesh=gl.createBuffer();
   const faces=[
     {n:[1,0,0],s:.83,v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},
@@ -267,37 +375,39 @@
     const data=[], uv=[[0,0],[0,1],[1,1],[1,0]];
     for(let y=0;y<MAX_Y;y++) for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++) {
       const type=get(x,y,z); if(!type) continue;
+      const countdown=type===19?(bombs.has([x,y,z].join(','))?Math.ceil(bombs.get([x,y,z].join(',')).remaining):11):0;
       for(const face of faces) {
         if(get(x+face.n[0],y+face.n[1],z+face.n[2])) continue;
         let color=colors[type]; if(type===1 && face.n[1]!==1) color=colors[2];
         for(const j of [0,1,2,0,2,3]) {
-          const v=face.v[j]; data.push(x+v[0],y+v[1],z+v[2],color[0]*face.s,color[1]*face.s,color[2]*face.s,...uv[j],type);
+          const v=face.v[j]; data.push(x+v[0],y+v[1],z+v[2],color[0]*face.s,color[1]*face.s,color[2]*face.s,...uv[j],type,countdown);
         }
       }
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER,mesh); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW); meshCount=data.length/9; dirty=false;
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW); meshCount=data.length/10; dirty=false;
   }
   function bind(buffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    for(const [attribute,size,offset] of [[loc.position,3,0],[loc.color,3,12],[loc.uv,2,24],[loc.kind,1,32]]) { gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,36,offset); }
+    for(const [attribute,size,offset] of [[loc.position,3,0],[loc.color,3,12],[loc.uv,2,24],[loc.kind,1,32],[loc.countdown,1,36]]) { gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,40,offset); }
   }
   function multiply(a,b) {
     const out=new Float32Array(16);
     for(let c=0;c<4;c++) for(let r=0;r<4;r++) for(let k=0;k<4;k++) out[c*4+r]+=a[k*4+r]*b[c*4+k];
     return out;
   }
+  function fieldOfView(){return ['titanic','taipei101'].includes(currentArea)?Math.PI/2.5:Math.PI/3;}
   function viewProjection() {
     const cy=Math.cos(player.yaw),sy=Math.sin(player.yaw),cp=Math.cos(player.pitch),sp=Math.sin(player.pitch);
     const right=[cy,0,sy], up=[-sy*sp,cp,cy*sp], back=[-sy*cp,-sp,cy*cp], eye=[player.x,player.y,player.z];
     const dot=v=>v.reduce((sum,n,i)=>sum+n*eye[i],0);
     const view=new Float32Array([right[0],up[0],back[0],0,right[1],up[1],back[1],0,right[2],up[2],back[2],0,-dot(right),-dot(up),-dot(back),1]);
-    const f=1/Math.tan(Math.PI/6), aspect=canvas.width/canvas.height, near=.08, far=godView?300:110;
+    const f=1/Math.tan(fieldOfView()/2), aspect=canvas.width/canvas.height, near=.08, far=godView?300:110;
     const projection=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0]);
     return multiply(projection,view);
   }
   function aimDirection() {
     const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw),sp=Math.sin(player.pitch),cp=Math.cos(player.pitch);
-    const sx=2*aimOffset.x/innerHeight*Math.tan(Math.PI/6),syScreen=-2*aimOffset.y/innerHeight*Math.tan(Math.PI/6);
+    const sx=2*aimOffset.x/innerHeight*Math.tan(fieldOfView()/2),syScreen=-2*aimOffset.y/innerHeight*Math.tan(fieldOfView()/2);
     const dir=[sy*cp+cy*sx-sy*sp*syScreen,sp+cp*syScreen,-cy*cp+sy*sx+cy*sp*syScreen];
     const length=Math.hypot(...dir);return dir.map(value=>value/length);
   }
@@ -315,7 +425,7 @@
     const delta=dir.map(d=>Math.abs(d)>1e-8?Math.abs(1/d):Infinity);
     const max=dir.map((d,i)=>Math.abs(d)>1e-8?((xyz[i]+(step[i]>0?1:0)-origin[i])/d):Infinity);
     let distance=0;
-    for(let i=0;i<70 && distance<16;i++) {
+    for(let i=0;i<100 && distance<24;i++) {
       const type=get(...xyz);
       if(type) return {xyz:[...xyz],previous:prev,type,distance};
       prev=[...xyz];
@@ -382,6 +492,47 @@
   function occupied(x,y,z) {
     return player.x+BODY_RADIUS>x && player.x-BODY_RADIUS<x+1 && player.z+BODY_RADIUS>z && player.z-BODY_RADIUS<z+1 && player.y+HEAD_HEIGHT>y && player.y-EYE_HEIGHT<y+1;
   }
+  function cloneHistoryItem(item) {return {kind:item.kind,edits:item.edits.map(e=>({...e,xyz:[...e.xyz]}))};}
+  function remember(edits,kind) {history.push({edits,kind});if(history.length>150)history.shift();}
+  function updateBombs(seconds) {
+    if(!canAct()||document.visibilityState==='hidden'||!Number.isFinite(seconds)||seconds<=0)return;
+    const expired=[];let changed=false;
+    for(const [key,b] of bombs) {
+      if(get(...b.xyz)!==19){bombs.delete(key);changed=true;continue;}
+      const before=Math.ceil(b.remaining);b.remaining=Math.max(0,b.remaining-seconds);
+      if(Math.ceil(b.remaining)!==before)changed=true;
+      if(b.remaining===0)expired.push(key);
+    }
+    // A nearby bomb is removed by the blast, with no chain reaction.
+    for(const key of expired)if(bombs.has(key))explode(bombs.get(key));
+    for(const burst of bursts)burst.age+=seconds;
+    while(bursts.length&&bursts[0].age>1.1)bursts.shift();
+    if(changed){dirty=true;scheduleSave();}
+  }
+  function explode(bomb) {
+    const [cx,cy,cz]=bomb.xyz,edits=[];
+    for(let dx=-BLAST_RADIUS;dx<=BLAST_RADIUS;dx++)for(let dy=-BLAST_RADIUS;dy<=BLAST_RADIUS;dy++)for(let dz=-BLAST_RADIUS;dz<=BLAST_RADIUS;dz++) {
+      const xyz=[cx+dx,cy+dy,cz+dz];
+      if(dx*dx+dy*dy+dz*dz>BLAST_RADIUS*BLAST_RADIUS||!inside(...xyz)||xyz[1]===0)continue;
+      const before=get(...xyz);if(!before)continue;
+      edits.push({xyz,before,after:0});set(...xyz,0);changes[xyz.join(',')]=0;bombs.delete(xyz.join(','));
+    }
+    if(edits.length)remember(edits,'explosion');
+    bursts.push({xyz:[cx+.5,cy+.5,cz+.5],age:0});dirty=true;scheduleSave();playTone('remove');
+    showToast('積木炸開了！按「復原」就能還原');
+  }
+  function drawBursts(vp) {
+    if(!canAct())return;
+    for(const burst of bursts)for(let i=0;i<16;i++) {
+      const angle=i*Math.PI*2/16,spread=burst.age*3.5;
+      const point=[burst.xyz[0]+Math.cos(angle)*spread,burst.xyz[1]+Math.sin(i*2.1)*spread+burst.age,burst.xyz[2]+Math.sin(angle)*spread,1],clip=[0,0,0,0];
+      for(let r=0;r<4;r++)for(let k=0;k<4;k++)clip[r]+=vp[k*4+r]*point[k];
+      if(clip[3]<.08)continue;
+      const x=(clip[0]/clip[3]*.5+.5)*innerWidth,y=(.5-clip[1]/clip[3]*.5)*innerHeight,size=Math.max(2,32/clip[3]);
+      outlineContext.globalAlpha=Math.max(0,1-burst.age/1.1);outlineContext.fillStyle=['#ffdd75','#ef8b8b','#8bc6ce','#9dc887'][i%4];outlineContext.fillRect(x-size,y-size,size*2,size*2);
+    }
+    outlineContext.globalAlpha=1;
+  }
   function edit(action) {
     if(!canAct()) return;
     if(godView){showToast('先按「回到原位」，就可以繼續蓋積木囉');return;}
@@ -392,15 +543,19 @@
     if(action==='place' && occupied(x,y,z)) { showToast('往旁邊走一步，就能放下積木囉'); return; }
     const before=get(...xyz), after=action==='place'?selected:0;
     if(before===after) return;
-    history.push({xyz:[...xyz],before,after}); if(history.length>150)history.shift();
+    remember([{xyz:[...xyz],before,after}],action);
+    const key=xyz.join(',');bombs.delete(key);
+    if(after===19)bombs.set(key,{xyz:[...xyz],remaining:BOMB_SECONDS});
     set(...xyz,after); changes[xyz.join(',')]=after; dirty=true;
     if(action==='place') {built++;usedColors.add(selected);}
     playTone(action); updateQuests(true); scheduleSave();
+    if(after===19)showToast('10 秒後炸開！拿掉可取消，復原可還原');
   }
   function undo() {
     if(!canAct()) return;
     const item=history.pop(); if(!item){showToast('還沒有要復原的動作，先蓋一蓋吧！');return;}
-    set(...item.xyz,item.before); changes[item.xyz.join(',')]=item.before; dirty=true; scheduleSave();playTone('remove');showToast('上一個動作復原了！');
+    for(const edit of item.edits){set(...edit.xyz,edit.before);changes[edit.xyz.join(',')]=edit.before;bombs.delete(edit.xyz.join(','));}
+    bursts.length=0;dirty=true;scheduleSave();playTone('remove');showToast(item.kind==='explosion'?'爆炸已復原！炸彈已停止，再放一次才會倒數':'上一個動作復原了！');
   }
   function clearMovement() { keys.clear();held.clear();lastShiftPress=null;document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
   function updateGodView() {
@@ -413,7 +568,7 @@
     if(!canAct())return;
     clearMovement();falling=false;fallVelocity=0;
     if(godView){Object.assign(player,godView.player);positionAim(godView.aim.x,godView.aim.y);godView=null;showToast('回到剛才的位置了！');}
-    else {const height=42*Math.max(1,innerHeight/innerWidth);godView={player:{...player},aim:{...aimOffset}};Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-4,18)});positionAim();showToast('從高空看看你的作品，再按一次就回到原位');}
+    else {const height=(currentArea==='taipei101'?70:42)*Math.max(1,innerHeight/innerWidth);godView={player:{...player},aim:{...aimOffset}};Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-(currentArea==='taipei101'?16:4),18)});positionAim();showToast('從高空看看你的作品，再按一次就回到原位');}
     updateGodView();
   }
   function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement(); }
@@ -426,6 +581,7 @@
   function renderPalette(group) {
     if(!Object.hasOwn(paletteGroups,group))return;
     paletteGroup=group;$('palette').innerHTML='';
+    $('palette-note').textContent=group==='fun'?'10 秒倒數 · 炸開附近 2 格 · 拿掉取消 · 復原還原':'';
     for(const name of Object.keys(paletteGroups)){$('palette-'+name).setAttribute('aria-pressed',String(name===group));}
     paletteGroups[group].forEach((type,i)=>{
       const block=blocks.find(b=>b.id===type),b=document.createElement('button');b.className='block-choice';b.dataset.type=block.id;b.title=`${block.name}（${i+1}）`;b.setAttribute('aria-label',`選擇${block.name}積木`);b.setAttribute('aria-pressed',String(selected===type));
@@ -450,7 +606,7 @@
   $('god-view').onclick=toggleGodView;
   $('reset').onclick=()=>{$('reset-area-name').textContent='要重新開始「'+areas[currentArea].name+'」嗎？';$('reset-modal').classList.remove('hidden');clearMovement();};
   $('cancel-reset').onclick=()=>$('reset-modal').classList.add('hidden');
-  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];built=0;usedColors.clear();achievements=0;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
+  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];bombs.clear();bursts.length=0;built=0;usedColors.clear();achievements=0;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
   document.addEventListener('contextmenu',e=>e.preventDefault());
   function handleKeyDown(e) {
     if(e.code==='Escape') { $('help-modal').classList.add('hidden');$('reset-modal').classList.add('hidden');keys.clear();held.clear();return; }
@@ -510,24 +666,25 @@
       const nx=axis==='x'?Math.max(.4,Math.min(SIZE-.4,player.x+delta)):player.x;
       const nz=axis==='z'?Math.max(.4,Math.min(SIZE-.4,player.z+delta)):player.z;
       if(!collides(nx,player.y,nz)){player.x=nx;player.z=nz;}
-      else if(!falling && player.y+1.002<=18 && !collides(nx,player.y+1.002,nz)){player.x=nx;player.z=nz;player.y+=1.002;}
+      else if(!falling && player.y+1.002<=FLY_LIMIT && !collides(nx,player.y+1.002,nz)){player.x=nx;player.z=nz;player.y+=1.002;}
     }
     const rise=Number(pressed('rise',['Space'])),sink=Number(pressed('sink',['ShiftLeft','ShiftRight']));
-    if(rise){falling=false;fallVelocity=0;const ny=Math.min(18,player.y+step);if(!collides(player.x,ny,player.z))player.y=ny;}
+    if(rise){falling=false;fallVelocity=0;const ny=Math.min(FLY_LIMIT,player.y+step);if(!collides(player.x,ny,player.z))player.y=ny;}
     else if(falling){fallVelocity=Math.min(28,fallVelocity+18*dt);if(lowerTo(player.y-fallVelocity*dt)){falling=false;fallVelocity=0;showToast('到地面了！繼續蓋積木吧');}}
     else if(sink)lowerTo(player.y-step);
   }
   let lastAim='';
   function frame(time) {
-    const dt=Math.min((time-lastTime)/1000,.04);lastTime=time;
-    if(canAct())move(dt);
+    const elapsed=lastTime?Math.max(0,(time-lastTime)/1000):0;lastTime=time;
+    if(canAct()){move(Math.min(elapsed,.04));updateBombs(elapsed);}
     if(dirty)rebuild();
     const vp=viewProjection();
     gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,player.x,player.y,player.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);gl.uniform3f(loc.sky,...areas[currentArea].sky);gl.uniform1f(loc.time,time/1000);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);
-    hit=raycast();drawOutline(vp);
+    hit=raycast();drawOutline(vp);drawBursts(vp);
     const aim=godView?'上帝視角 · 按「回到原位」繼續玩':hit?'亮框：E 放積木 / Q 拿掉':'靠近積木，再往下看一看';
     if(aim!==lastAim){$('aim-label').textContent=aim;lastAim=aim;}
     requestAnimationFrame(frame);
   }
+  document.addEventListener('visibilitychange',()=>{lastTime=0;if(started)saveNow();});
   makeWorld();home();choose(areas[currentArea].material);loadSave();updateAreaUI();updateQuests();requestAnimationFrame(frame);
 })();
