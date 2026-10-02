@@ -6,7 +6,17 @@
   const outlineContext = outlineCanvas.getContext('2d');
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) { $('welcome').classList.add('hidden'); $('error').classList.remove('hidden'); return; }
-  const SIZE = 40, MAX_Y = 24, SAVE_KEY = 'little-block-world-v1';
+  const SIZE = 40, MAX_Y = 24, LEGACY_SAVE_KEY = 'little-block-world-v1';
+  const SAVE_PREFIX = 'little-block-world-v2:', AREA_META_KEY = 'little-block-world-area-v2';
+  const areas = {
+    cottage:{name:'小屋世界',icon:'⌂',hint:'小屋、樹木與池塘，替家添一點顏色。',idea:'替小屋蓋個花園或小陽台',sky:[.74,.88,.92],spawn:{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29},material:6},
+    street:{name:'道路街景',icon:'▤',hint:'逛街、看車子，蓋出你喜歡的城市。',idea:'替街道蓋一間商店或公車站',sky:[.76,.87,.94],spawn:{x:20.5,y:6,z:35.5,yaw:0,pitch:-.45},material:16},
+    volcano:{name:'火山口',icon:'▲',hint:'安全的岩漿與火山，出發去探險！',idea:'蓋一座觀景台或跨過岩漿的橋',sky:[.94,.80,.68],spawn:{x:20.5,y:17.5,z:28.5,yaw:0,pitch:-.83},material:18},
+    meadow:{name:'平坦草地',icon:'▱',hint:'一大片空白草地，全部交給你的想像。',idea:'從草地開始，蓋出自己的夢想小屋',sky:[.75,.90,.87],spawn:{x:20.5,y:3.722,z:29.5,yaw:0,pitch:-.4},material:6}
+  };
+  let currentArea = 'cottage';
+  try { const last=localStorage.getItem(AREA_META_KEY);if(Object.hasOwn(areas,last))currentArea=last; } catch { /* Offline play works without storage. */ }
+  const regionSessions = new Map();
   const BODY_RADIUS = .23, EYE_HEIGHT = .72, HEAD_HEIGHT = .10, EPSILON = .002;
   const MIN_EYE = 1 + EYE_HEIGHT + EPSILON;
   const blocks = [
@@ -17,9 +27,16 @@
     { id: 7, name: '粉紅', color: '#eda6ac', rgb: [.91,.53,.58] },
     { id: 8, name: '天空', color: '#94c6de', rgb: [.49,.72,.83] },
     { id: 9, name: '陽光', color: '#f5ce6d', rgb: [.96,.76,.35] },
-    { id: 4, name: '樹葉', color: '#6d9f71', rgb: [.35,.58,.36] }
+    { id: 4, name: '樹葉', color: '#6d9f71', rgb: [.35,.58,.36] },
+    { id: 2, name: '泥土', color:'#98704a' }, { id:10,name:'池水',color:'#58a9c5' },
+    { id:11,name:'屋瓦',color:'#df8f91' }, { id:12,name:'白磚',color:'#f5e8c9' },
+    { id:13,name:'沙地',color:'#dcc39b' }, { id:14,name:'柏油',color:'#54646b' },
+    { id:15,name:'岩漿',color:'#ff7b2c' }, { id:16,name:'紅磚',color:'#c66b54' },
+    { id:17,name:'窗框',color:'#a4d4dd' }, { id:18,name:'火山岩',color:'#64616c' }
   ];
-  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74] };
+  const paletteGroups = {color:[1,3,5,6,7,8,9,4],building:[3,5,6,12,14,16,17,11],nature:[1,4,2,10,13,15,18]};
+  let paletteGroup='color';
+  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74],13:[.83,.73,.54],14:[.25,.31,.34],15:[1,.37,.07],16:[.75,.37,.27],17:[.60,.80,.84],18:[.32,.30,.36] };
   const voxels = new Uint8Array(SIZE * SIZE * MAX_Y);
   const index = (x,y,z) => x + SIZE * (z + SIZE * y);
   const inside = (x,y,z) => x>=0 && z>=0 && y>=0 && x<SIZE && z<SIZE && y<MAX_Y;
@@ -40,7 +57,7 @@
     if (d > 21 || (d>18 && noise(x,z)>.35)) return 0;
     return 2 + ((x<10 || x>30 || z<8) && Math.sin(x*.23)+Math.cos(z*.26)>.55 ? 1 : 0);
   }
-  function makeWorld() {
+  function makeCottage() {
     voxels.fill(0);
     for(let x=0;x<SIZE;x++) for(let z=0;z<SIZE;z++) {
       const h = terrain(x,z);
@@ -82,30 +99,122 @@
     for(const [cx,cz] of [[7,5],[29,4],[7,34],[33,32]]) for(let dx=0;dx<5;dx++) for(let dz=0;dz<2;dz++) set(cx+dx,20+(dx===2?1:0),cz+dz,12);
   }
 
+  function fillFlat(top=1) {
+    for(let x=0;x<SIZE;x++)for(let z=0;z<SIZE;z++)for(let y=0;y<=2;y++)set(x,y,z,y===2?top:2);
+  }
+  function makeStreet() {
+    fillFlat();
+    for(let x=0;x<SIZE;x++)for(let z=0;z<SIZE;z++) {
+      if((x>=17&&x<=22)||(z>=17&&z<=22))set(x,2,z,14);
+      if((x===19||x===20)&&z%6<3&&(z<16||z>23))set(x,2,z,12);
+      if((z===19||z===20)&&x%6<3&&(x<16||x>23))set(x,2,z,9);
+      if((x===15||x===16||x===23||x===24)&&!(z>=17&&z<=22))set(x,3,z,12);
+      if((z===15||z===16||z===23||z===24)&&!(x>=17&&x<=22))set(x,3,z,12);
+      if(x>=17&&x<=22&&(z===28||z===30))set(x,2,z,12);
+    }
+    function shop(x0,z0,width,depth,height,wall,roof) {
+      for(let x=x0;x<x0+width;x++)for(let z=z0;z<z0+depth;z++) {
+        set(x,3,z,12);
+        for(let y=4;y<4+height;y++)if(x===x0||x===x0+width-1||z===z0||z===z0+depth-1) {
+          const door=z===z0+depth-1&&(x===x0+3||x===x0+4)&&y<6;
+          if(!door)set(x,y,z,(y===5||y===8)&&(x-x0)%3!==0&&(z-z0)%3!==0?17:wall);
+        }
+        set(x,4+height,z,roof);
+      }
+      for(let x=x0+1;x<x0+width-1;x++)set(x,6,z0+depth,roof);
+    }
+    shop(5,5,8,9,7,6,16);shop(27,5,8,9,9,8,12);
+    shop(5,27,8,7,4,7,9);shop(27,27,8,7,5,16,6);
+    for(const x of [15,24])for(const z of [9,26,34]) {
+      for(let y=4;y<8;y++)set(x,y,z,18);set(x,8,z,9);set(x,8,z+1,9);
+    }
+    function car(x,z,color) {
+      for(let dx=0;dx<2;dx++)for(let dz=0;dz<4;dz++){set(x+dx,3,z+dz,color);if(dz===1||dz===2)set(x+dx,4,z+dz,17);}
+      set(x,3,z,18);set(x+1,3,z,18);set(x,3,z+3,18);set(x+1,3,z+3,18);
+    }
+    car(17,24,9);car(21,9,7);car(29,17,8);
+    for(const [x,z] of [[3,18],[36,18],[3,24],[36,24]]){for(let y=3;y<6;y++)set(x,y,z,3);for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)set(x+dx,6,z+dz,4);}
+  }
+  function makeVolcano() {
+    for(let x=0;x<SIZE;x++)for(let z=0;z<SIZE;z++) {
+      const radius=Math.hypot(x-20,z-19);
+      const h=radius<4?5:2+Math.max(0,Math.floor((14-radius)*.8));
+      for(let y=0;y<=h;y++)set(x,y,z,y===h?(radius<4?15:radius<14?18:13):18);
+    }
+    // A bright, harmless lava stream and a wooden lookout for little explorers.
+    for(let x=24;x<=34;x++)for(let z=17;z<=18;z++) {
+      let top=MAX_Y-1;while(top>0&&!get(x,top,z))top--;set(x,top,z,15);
+    }
+    for(let x=17;x<=23;x++)for(let z=29;z<=31;z++){for(let y=3;y<=5;y++)set(x,y,z,3);set(x,6,z,3);}
+    for(const x of [17,23])for(let z=29;z<=31;z++)set(x,7,z,6);
+    for(let z=25;z<=28;z++)for(let x=19;x<=21;x++)set(x,6+Math.floor((28-z)/2),z,3);
+    for(const [x,z] of [[7,10],[31,7],[6,27],[32,30]])for(let y=3;y<6;y++)set(x,y,z,18);
+  }
+  function makeWorld() {
+    voxels.fill(0);
+    if(currentArea==='cottage')makeCottage();
+    else if(currentArea==='street')makeStreet();
+    else if(currentArea==='volcano')makeVolcano();
+    else fillFlat();
+  }
+
+  function saveKey(area=currentArea){return SAVE_PREFIX+area;}
+  function snapshot() {
+    return {version:2,area:currentArea,changes:{...changes},built,colors:[...usedColors],achievements,selected,player:{...(godView?godView.player:player)},aim:{...(godView?godView.aim:aimOffset)}};
+  }
+  function validCamera(p) {
+    return p&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(p[k]))&&p.x>=.4&&p.x<=SIZE-.4&&p.z>=.4&&p.z<=SIZE-.4&&p.y>=MIN_EYE&&p.y<=18&&Math.abs(p.pitch)<=1.35&&!collides(p.x,p.y,p.z);
+  }
+
   function loadSave() {
     try {
-      const raw=localStorage.getItem(SAVE_KEY);
+      const session=regionSessions.get(currentArea);
+      let raw=session?session.raw:localStorage.getItem(saveKey()),legacy=false;
+      if(!raw&&currentArea==='cottage'){raw=localStorage.getItem(LEGACY_SAVE_KEY);legacy=Boolean(raw);}
       if(!raw) return;
       const saved=JSON.parse(raw);
-      if(saved.version!==1 || !saved.changes || typeof saved.changes!=='object') return;
+      if((legacy?saved.version!==1:saved.version!==2||saved.area!==currentArea)||!saved.changes||typeof saved.changes!=='object')return;
       for(const [key,type] of Object.entries(saved.changes)) {
         const xyz=key.split(',').map(Number);
-        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && type>=0 && type<=12) { set(...xyz,type); changes[key]=type; }
+        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && type>=0 && type<=18) { set(...xyz,type); changes[key]=type; }
       }
       built=Number.isFinite(saved.built)?Math.min(100000,Math.max(0,saved.built)):0;
       usedColors=new Set(Array.isArray(saved.colors)?saved.colors.filter(t=>blocks.some(b=>b.id===t)):[]);
       achievements=Number.isInteger(saved.achievements)?Math.max(0,Math.min(3,saved.achievements)):0;
+      if(blocks.some(b=>b.id===saved.selected))choose(saved.selected);
+      if(validCamera(saved.player))Object.assign(player,saved.player);
+      if(saved.aim&&Number.isFinite(saved.aim.x)&&Number.isFinite(saved.aim.y))positionAim(saved.aim.x,saved.aim.y);
+      if(session)history=session.history.map(item=>({...item,xyz:[...item.xyz]}));
       $('save-status').textContent='● 已載入你的作品';
+      if(legacy)saveNow();
     } catch { $('save-status').textContent='● 這次的作品暫不存檔'; }
   }
   function saveNow() {
+    const raw=JSON.stringify(snapshot());
+    regionSessions.set(currentArea,{raw,history:history.map(item=>({...item,xyz:[...item.xyz]}))});
     try {
-      localStorage.setItem(SAVE_KEY,JSON.stringify({version:1,changes,built,colors:[...usedColors],achievements}));
+      localStorage.setItem(saveKey(),raw);
       $('save-status').textContent='● 作品已存好';
-    } catch { $('save-status').textContent='● 無法存檔'; showToast('這個瀏覽器無法存檔，請大人幫忙開啟儲存功能'); }
+      return true;
+    } catch { $('save-status').textContent='● 暫存於這次遊戲'; showToast('作品暫存在這次遊戲，重開前請大人幫忙開啟儲存功能');return false; }
   }
   function scheduleSave() { $('save-status').textContent='● 正在收好積木…'; clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,450); }
   window.addEventListener('pagehide',()=>{ if(started) saveNow(); });
+  function updateAreaUI() {
+    const area=areas[currentArea];$('area-select').value=currentArea;$('area-hint').textContent=area.hint;
+    $('area-icon').textContent=area.icon;$('area-save-note').textContent='各區域獨立存檔';
+    $('home').innerHTML='⌂<span>'+(currentArea==='cottage'?'回小屋':'回起點')+'</span>';
+    $('home').title=currentArea==='cottage'?'回到小屋':'回到目前區域的起點';
+    const sky=area.sky;gl.clearColor(...sky,1);
+  }
+  function switchArea(area) {
+    if(!Object.hasOwn(areas,area)||area===currentArea)return;
+    clearTimeout(saveTimer);saveNow();
+    currentArea=area;changes={};history=[];built=0;usedColors=new Set();achievements=0;
+    makeWorld();home();choose(areas[area].material);$('save-status').textContent='● 新區域，開始創作吧';loadSave();dirty=true;hit=null;updateAreaUI();updateQuests();
+    try{localStorage.setItem(AREA_META_KEY,area);}catch{/* In-memory area switching remains available. */}
+    showToast('來到'+areas[area].name+'！作品會分開保存');
+  }
 
   function compile(type,source) {
     const shader=gl.createShader(type); gl.shaderSource(shader,source); gl.compileShader(shader);
@@ -116,31 +225,35 @@
   try {
     program=gl.createProgram();
     gl.attachShader(program,compile(gl.VERTEX_SHADER,`
-      attribute vec3 aPosition; attribute vec3 aColor; attribute vec2 aUV;
+      attribute vec3 aPosition; attribute vec3 aColor; attribute vec2 aUV; attribute float aKind;
       uniform mat4 uVP; uniform vec3 uEye;
-      varying vec3 vColor; varying vec2 vUV; varying float vDistance;
-      void main(){ gl_Position=uVP*vec4(aPosition,1.0); vColor=aColor; vUV=aUV; vDistance=distance(aPosition,uEye); }
+      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind;
+      void main(){ gl_Position=uVP*vec4(aPosition,1.0); vColor=aColor; vUV=aUV; vKind=aKind; vDistance=distance(aPosition,uEye); }
     `));
     gl.attachShader(program,compile(gl.FRAGMENT_SHADER,`
       precision mediump float;
-      varying vec3 vColor; varying vec2 vUV; varying float vDistance;
+      varying vec3 vColor; varying vec2 vUV; varying float vDistance; varying float vKind;
       uniform float uOutline;
       uniform vec2 uFogRange;
+      uniform vec3 uSky; uniform float uTime;
       void main(){
         vec2 pixel=floor(vUV*8.0);
         float n=fract(sin(dot(pixel,vec2(12.9898,78.233)))*43758.5453);
         float edge=step(.025,vUV.x)*step(.025,vUV.y)*step(vUV.x,.975)*step(vUV.y,.975);
         vec3 c=vColor*(.93+n*.12)*mix(.91,1.0,edge);
+        if(vKind>14.5&&vKind<15.5){float glow=.5+.5*sin(uTime*1.7+vUV.x*6.0+vUV.y*4.0);c=mix(vec3(1.0,.27,.04),vec3(1.0,.72,.14),glow*.65+n*.18);}
+        if(vKind>15.5&&vKind<16.5){float seam=step(.09,fract(vUV.y*3.0))*step(.045,fract(vUV.x*2.0+floor(vUV.y*3.0)*.5));c=mix(vec3(.77,.69,.56),c,seam);}
+        if(vKind>16.5&&vKind<17.5){float pane=step(.1,vUV.x)*step(.1,vUV.y)*step(vUV.x,.9)*step(vUV.y,.9);c=mix(vec3(.93,.91,.81),c,pane);}
         if(uOutline>.5)c=vec3(1.0,.93,.68);
         float fog=smoothstep(uFogRange.x,uFogRange.y,vDistance);
-        gl_FragColor=vec4(mix(c,vec3(.74,.88,.92),fog),1.0);
+        gl_FragColor=vec4(mix(c,uSky,fog),1.0);
       }
     `));
     gl.linkProgram(program);
     if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
   } catch(error) { console.error(error); $('welcome').classList.add('hidden'); $('error').classList.remove('hidden'); return; }
   gl.useProgram(program);
-  const loc={ position:gl.getAttribLocation(program,'aPosition'), color:gl.getAttribLocation(program,'aColor'), uv:gl.getAttribLocation(program,'aUV'), vp:gl.getUniformLocation(program,'uVP'), eye:gl.getUniformLocation(program,'uEye'), outline:gl.getUniformLocation(program,'uOutline'), fog:gl.getUniformLocation(program,'uFogRange') };
+  const loc={ position:gl.getAttribLocation(program,'aPosition'), color:gl.getAttribLocation(program,'aColor'), uv:gl.getAttribLocation(program,'aUV'), kind:gl.getAttribLocation(program,'aKind'), vp:gl.getUniformLocation(program,'uVP'), eye:gl.getUniformLocation(program,'uEye'), outline:gl.getUniformLocation(program,'uOutline'), fog:gl.getUniformLocation(program,'uFogRange'),sky:gl.getUniformLocation(program,'uSky'),time:gl.getUniformLocation(program,'uTime') };
   const mesh=gl.createBuffer();
   const faces=[
     {n:[1,0,0],s:.83,v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},
@@ -158,15 +271,15 @@
         if(get(x+face.n[0],y+face.n[1],z+face.n[2])) continue;
         let color=colors[type]; if(type===1 && face.n[1]!==1) color=colors[2];
         for(const j of [0,1,2,0,2,3]) {
-          const v=face.v[j]; data.push(x+v[0],y+v[1],z+v[2],color[0]*face.s,color[1]*face.s,color[2]*face.s,...uv[j]);
+          const v=face.v[j]; data.push(x+v[0],y+v[1],z+v[2],color[0]*face.s,color[1]*face.s,color[2]*face.s,...uv[j],type);
         }
       }
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER,mesh); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW); meshCount=data.length/8; dirty=false;
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW); meshCount=data.length/9; dirty=false;
   }
   function bind(buffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    for(const [attribute,size,offset] of [[loc.position,3,0],[loc.color,3,12],[loc.uv,2,24]]) { gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,32,offset); }
+    for(const [attribute,size,offset] of [[loc.position,3,0],[loc.color,3,12],[loc.uv,2,24],[loc.kind,1,32]]) { gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute,size,gl.FLOAT,false,36,offset); }
   }
   function multiply(a,b) {
     const out=new Float32Array(16);
@@ -223,6 +336,7 @@
       return [(clip[0]/clip[3]*.5+.5)*innerWidth,(.5-clip[1]/clip[3]*.5)*innerHeight];
     }
     for(const face of faces) {
+      if(get(x+face.n[0],y+face.n[1],z+face.n[2]))continue;
       const facing=face.n[0]*(player.x-x-.5-face.n[0]*.5)+face.n[1]*(player.y-y-.5-face.n[1]*.5)+face.n[2]*(player.z-z-.5-face.n[2]*.5);
       if(facing<=0)continue;
       const points=face.v.map(project);if(points.some(p=>!p))continue;paths.push(points);
@@ -258,8 +372,8 @@
     const completed=built>=1?(built>=8?(usedColors.size>=3?3:2):1):0;
     if(completed>achievements) { achievements=completed; if(celebrate){showToast(['','✦ 太棒了！第一塊積木！','✦ 你是小小建築師了！','✦ 三顆星！繼續蓋你的夢想吧！'][completed]);playTone('win');} }
     const q=Math.min(achievements,3);
-    const titles=['放下第一塊積木','蓋一個小小作品','讓世界變得繽紛','你是超棒的建築師！'];
-    const details=['選一個喜歡的顏色，按「放積木」！',`再放一些積木吧！已經放了 ${Math.min(built,8)} / 8 塊`, `試試 3 種積木！已經用了 ${Math.min(usedColors.size,3)} 種`,'三顆星都收集到了。自由創作吧！'];
+    const titles=['放下第一塊積木',currentArea==='street'?'打造你的街道':currentArea==='volcano'?'小小火山探險家':currentArea==='meadow'?'從零蓋出夢想':'蓋一個小小作品','讓世界變得繽紛','你是超棒的建築師！'];
+    const details=['選一個喜歡的素材，按「放積木」！',`已放 ${Math.min(built,8)} / 8 塊！${areas[currentArea].idea}`, `試試 3 種積木！已經用了 ${Math.min(usedColors.size,3)} 種`,areas[currentArea].idea+'，自由創作吧！'];
     $('quest-title').textContent=titles[q]; $('quest-detail').textContent=details[q]; $('quest-progress').textContent=q===3?'完成！':`${q+1} / 3`;
     $('stars').textContent=Array.from({length:3},(_,i)=>i<q?'★':'☆').join(' ');
     $('progress-fill').style.width=`${q===0?0:q===1?Math.min(built/8,1)*100:q===2?Math.min(usedColors.size/3,1)*100:100}%`;
@@ -302,39 +416,55 @@
     else {const height=42*Math.max(1,innerHeight/innerWidth);godView={player:{...player},aim:{...aimOffset}};Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-4,18)});positionAim();showToast('從高空看看你的作品，再按一次就回到原位');}
     updateGodView();
   }
-  function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29});positionAim();clearMovement(); }
+  function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement(); }
   function choose(type) {
+    if(!blocks.some(b=>b.id===type))return;
     selected=type;
+    if(!paletteGroups[paletteGroup].includes(type))renderPalette(Object.keys(paletteGroups).find(group=>paletteGroups[group].includes(type)));
     document.querySelectorAll('.block-choice').forEach(b=>{ const active=Number(b.dataset.type)===type; b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active)); });
   }
-  blocks.forEach((block,i)=>{
-    const b=document.createElement('button');b.className='block-choice';b.dataset.type=block.id;b.title=`${block.name}（${i+1}）`;b.setAttribute('aria-label',`選擇${block.name}積木`);
-    b.innerHTML=`<span class="key">${i+1}</span><span class="swatch" style="--block:${block.color}"></span><span class="block-name">${block.name}</span>`;
-    b.addEventListener('click',()=>choose(block.id));$('palette').appendChild(b);
-  });choose(selected);
+  function renderPalette(group) {
+    if(!Object.hasOwn(paletteGroups,group))return;
+    paletteGroup=group;$('palette').innerHTML='';
+    for(const name of Object.keys(paletteGroups)){$('palette-'+name).setAttribute('aria-pressed',String(name===group));}
+    paletteGroups[group].forEach((type,i)=>{
+      const block=blocks.find(b=>b.id===type),b=document.createElement('button');b.className='block-choice';b.dataset.type=block.id;b.title=`${block.name}（${i+1}）`;b.setAttribute('aria-label',`選擇${block.name}積木`);b.setAttribute('aria-pressed',String(selected===type));
+      b.classList.toggle('active',selected===type);b.innerHTML=`<span class="key">${i+1}</span><span class="swatch" style="--block:${block.color}"></span><span class="block-name">${block.name}</span>`;
+      b.addEventListener('click',()=>choose(block.id));$('palette').appendChild(b);
+    });
+  }
+  function pickBlock() {
+    if(!canAct()||godView)return;
+    const target=raycast();if(!target){showToast('先用準心對準想要的積木');return;}
+    choose(target.type);playTone('place');showToast('選好了：'+blocks.find(b=>b.id===target.type).name+'積木！');
+  }
+  for(const group of Object.keys(paletteGroups))$('palette-'+group).onclick=()=>renderPalette(group);
+  renderPalette(paletteGroup);choose(selected);
+  $('area-select').addEventListener('change',e=>{switchArea(e.target.value);e.target.blur();});
   $('start').onclick=()=>{started=true;$('welcome').classList.add('hidden');showToast('歡迎！拖曳畫面，找一個喜歡的地方開始蓋吧');};
   $('help').onclick=()=>{$('help-modal').classList.remove('hidden');keys.clear();held.clear();};
   $('close-help').onclick=()=>$('help-modal').classList.add('hidden');
   $('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=soundOn?'♫':'♪';$('sound').setAttribute('aria-label',soundOn?'關閉音效':'開啟音效');$('sound').style.background=soundOn?'#f9d58c':'';showToast(soundOn?'音效開啟了 ♪':'音效已關閉');playTone('place');};
   $('place').onclick=()=>edit('place');$('remove').onclick=()=>edit('remove');$('undo').onclick=undo;
-  $('home').onclick=()=>{home();showToast('回到小屋了！');};
+  $('home').onclick=()=>{home();showToast('回到'+areas[currentArea].name+'的起點了！');};
   $('god-view').onclick=toggleGodView;
-  $('reset').onclick=()=>{$('reset-modal').classList.remove('hidden');keys.clear();held.clear();};
+  $('reset').onclick=()=>{$('reset-area-name').textContent='要重新開始「'+areas[currentArea].name+'」嗎？';$('reset-modal').classList.remove('hidden');clearMovement();};
   $('cancel-reset').onclick=()=>$('reset-modal').classList.add('hidden');
-  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];built=0;usedColors.clear();achievements=0;makeWorld();dirty=true;home();updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast('新的冒險開始了！');};
+  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];built=0;usedColors.clear();achievements=0;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
   document.addEventListener('contextmenu',e=>e.preventDefault());
   function handleKeyDown(e) {
     if(e.code==='Escape') { $('help-modal').classList.add('hidden');$('reset-modal').classList.add('hidden');keys.clear();held.clear();return; }
     if(!canAct()) return;
+    if(e.target&&['SELECT','INPUT','TEXTAREA'].includes(e.target.tagName))return;
     if((e.code==='ShiftLeft'||e.code==='ShiftRight') && !e.repeat && !keys.has('ShiftLeft') && !keys.has('ShiftRight') && !godView) {
       const now=Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
       if(lastShiftPress!==null && now-lastShiftPress>=0 && now-lastShiftPress<=330){falling=true;fallVelocity=0;lastShiftPress=null;showToast('輕輕落地囉！按空白鍵可以停住');}
       else lastShiftPress=now;
     }
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight','KeyE','KeyQ'].includes(e.code)){e.preventDefault();keys.add(e.code);}
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight','KeyE','KeyQ','KeyR'].includes(e.code)){e.preventDefault();keys.add(e.code);}
     if(e.repeat)return;
-    if(e.code==='KeyE')edit('place');if(e.code==='KeyQ')edit('remove');if(e.code==='KeyZ')undo();
-    const digit=Number(e.key);if(digit>=1 && digit<=blocks.length)choose(blocks[digit-1].id);
+    if(e.code==='KeyE')edit('place');if(e.code==='KeyQ')edit('remove');if(e.code==='KeyZ')undo();if(e.code==='KeyR')pickBlock();
+    const digit=Number(e.key);if(digit>=1 && digit<=paletteGroups[paletteGroup].length)choose(paletteGroups[paletteGroup][digit-1]);
   }
   document.addEventListener('keydown',handleKeyDown);
   document.addEventListener('keyup',e=>keys.delete(e.code));
@@ -393,11 +523,11 @@
     if(canAct())move(dt);
     if(dirty)rebuild();
     const vp=viewProjection();
-    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,player.x,player.y,player.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,player.x,player.y,player.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);gl.uniform3f(loc.sky,...areas[currentArea].sky);gl.uniform1f(loc.time,time/1000);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);
     hit=raycast();drawOutline(vp);
     const aim=godView?'上帝視角 · 按「回到原位」繼續玩':hit?'亮框：E 放積木 / Q 拿掉':'靠近積木，再往下看一看';
     if(aim!==lastAim){$('aim-label').textContent=aim;lastAim=aim;}
     requestAnimationFrame(frame);
   }
-  makeWorld();loadSave();updateQuests();requestAnimationFrame(frame);
+  makeWorld();home();choose(areas[currentArea].material);loadSave();updateAreaUI();updateQuests();requestAnimationFrame(frame);
 })();
