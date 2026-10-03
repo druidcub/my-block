@@ -515,7 +515,7 @@
     const mode=grounded?(speed>.02?'walk':'idle'):vy>.02?'rise':vy<-.02?(falling?'fall':'sink'):'hover';
     if(grounded&&!avatar.grounded){avatar.landing=1;playTone('land');}
     if(mode==='fall'&&avatar.mode!=='fall')playTone('fall');
-    avatar.mode=mode;avatar.grounded=grounded;avatar.phase+=dt*(mode==='walk'?13:mode==='rise'?12:mode==='sink'||mode==='fall'?5:3);
+    avatar.mode=mode;avatar.grounded=grounded;avatar.phase+=dt*(mode==='walk'?13:mode==='rise'?13.5:mode==='sink'||mode==='fall'?5:mode==='hover'?3.4:3);
     const smoothing=1-Math.exp(-dt*10);
     for(const state of ['walk','rise','sink','fall','hover'])avatar[state]+=(Number(mode===state)-avatar[state])*smoothing;
     avatar.landing*=Math.exp(-dt*8);avatar.action*=Math.exp(-dt*9);

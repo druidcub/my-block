@@ -7,7 +7,7 @@
     const walk=clamp(pose.walk),rise=clamp(pose.rise),sink=clamp(pose.sink),fall=clamp(pose.fall),hover=clamp(pose.hover),land=clamp(pose.landing);
     const roll=Math.sin(phase)*walk*.045,lean=-.10*rise+.07*fall;
     const bob=Math.abs(Math.sin(phase))*walk*.014+Math.sin(phase*.5)*hover*.008-land*.045;
-    const flap=.16+rise*(.72+Math.sin(phase*1.8)*.24)+sink*.85+fall*1.05+hover*(.25+Math.sin(phase)*.12);
+    const flap=.16+rise*(.92+Math.sin(phase*1.8)*.24)+sink*.95+fall*1.05+hover*(.45+Math.sin(phase)*.12);
     function transform(v,joint,fixed) {
       let [x,y,z]=v;
       if(joint){const [px,py,pz,angle]=joint,c=Math.cos(angle),s=Math.sin(angle),dx=x-px,dy=y-py;x=px+c*dx-s*dy;y=py+s*dx+c*dy;z+=pz;}
