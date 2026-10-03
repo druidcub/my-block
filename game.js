@@ -32,6 +32,12 @@
   const regionSessions = new Map();
   const BODY_RADIUS = .23, EYE_HEIGHT = .72, HEAD_HEIGHT = .10, EPSILON = .002;
   const MIN_EYE = 1 + EYE_HEIGHT + EPSILON;
+  const BOMB_TYPES = {
+    19:{radius:2,color:'#e85e55',rim:'#a73736',ink:'#952e30'},
+    21:{radius:5,color:'#9268d7',rim:'#62418f',ink:'#543276'},
+    22:{radius:10,color:'#3fafd9',rim:'#287b9c',ink:'#1b607c'}
+  };
+  const isBomb = type => Object.hasOwn(BOMB_TYPES,type);
   const blocks = [
     { id: 1, name: '草地', color: '#89b867', rgb: [.48,.67,.32] },
     { id: 3, name: '木頭', color: '#bc9266', rgb: [.66,.46,.28] },
@@ -46,11 +52,12 @@
     { id:13,name:'沙地',color:'#dcc39b' }, { id:14,name:'柏油',color:'#54646b' },
     { id:15,name:'岩漿',color:'#ff7b2c' }, { id:16,name:'紅磚',color:'#c66b54' },
     { id:17,name:'窗框',color:'#a4d4dd' }, { id:18,name:'火山岩',color:'#64616c' },
-    { id:19,name:'定時炸彈',color:'#e85e55' }, { id:20,name:'青綠',color:'#438f88' }
+    { id:19,name:'炸彈 2 格',color:BOMB_TYPES[19].color }, { id:20,name:'青綠',color:'#438f88' },
+    { id:21,name:'炸彈 5 格',color:BOMB_TYPES[21].color }, { id:22,name:'炸彈 10 格',color:BOMB_TYPES[22].color }
   ];
-  const paletteGroups = {color:[1,3,5,6,7,8,9,4],building:[3,5,6,12,14,16,17,11],nature:[1,4,2,10,13,15,18,20],fun:[19]};
+  const paletteGroups = {color:[1,3,5,6,7,8,9,4],building:[3,5,6,12,14,16,17,11],nature:[1,4,2,10,13,15,18,20],fun:[19,21,22]};
   let paletteGroup='color';
-  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74],13:[.83,.73,.54],14:[.25,.31,.34],15:[1,.37,.07],16:[.75,.37,.27],17:[.60,.80,.84],18:[.32,.30,.36],19:[.91,.30,.26],20:[.22,.53,.49] };
+  const colors = { 1:[.48,.67,.32], 2:[.55,.40,.26], 3:[.66,.46,.28], 4:[.35,.58,.36], 5:[.60,.65,.64], 6:[.93,.82,.59], 7:[.91,.53,.58], 8:[.49,.72,.83], 9:[.96,.76,.35], 10:[.31,.65,.77], 11:[.89,.57,.57], 12:[.96,.90,.74],13:[.83,.73,.54],14:[.25,.31,.34],15:[1,.37,.07],16:[.75,.37,.27],17:[.60,.80,.84],18:[.32,.30,.36],19:[.91,.30,.26],20:[.22,.53,.49],21:[.57,.41,.84],22:[.25,.69,.85] };
   const voxels = new Uint8Array(SIZE * SIZE * MAX_Y);
   const index = (x,y,z) => x + SIZE * (z + SIZE * y);
   const inside = (x,y,z) => x>=0 && z>=0 && y>=0 && x<SIZE && z<SIZE && y<MAX_Y;
@@ -65,7 +72,7 @@
   let falling = false, fallVelocity = 0, lastShiftPress = null, godView = null;
   let lastTime = 0;
   const bombs = new Map(), bursts = [];
-  const BOMB_SECONDS = 10, BLAST_RADIUS = 2;
+  const BOMB_SECONDS = 10;
   const avatar={mode:'idle',phase:0,heading:0,walk:0,rise:0,sink:0,fall:0,hover:0,landing:0,action:0,last:{...player},grounded:false,step:0};
 
   const noise = (x,z) => (Math.sin(x*127.1+z*311.7)*43758.5453)%1;
@@ -275,10 +282,10 @@
       if((legacy?saved.version!==1:saved.version!==2||saved.area!==currentArea)||!saved.changes||typeof saved.changes!=='object')return;
       for(const [key,type] of Object.entries(saved.changes)) {
         const xyz=key.split(',').map(Number);
-        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && type>=0 && type<=20) { set(...xyz,type); changes[key]=type; }
+        if(xyz.length===3 && xyz.every(Number.isInteger) && inside(...xyz) && xyz[1]>0 && Number.isInteger(type) && (type===0||Object.hasOwn(colors,type))) { set(...xyz,type); changes[key]=type; }
       }
       if(Array.isArray(saved.bombs))for(const b of saved.bombs) {
-        if(b&&Array.isArray(b.xyz)&&b.xyz.length===3&&b.xyz.every(Number.isInteger)&&inside(...b.xyz)&&b.xyz[1]>0&&get(...b.xyz)===19&&Number.isFinite(b.remaining)&&b.remaining>0&&b.remaining<=BOMB_SECONDS)bombs.set(b.xyz.join(','),{xyz:[...b.xyz],remaining:b.remaining});
+        if(b&&Array.isArray(b.xyz)&&b.xyz.length===3&&b.xyz.every(Number.isInteger)&&inside(...b.xyz)&&b.xyz[1]>0&&isBomb(get(...b.xyz))&&Number.isFinite(b.remaining)&&b.remaining>0&&b.remaining<=BOMB_SECONDS)bombs.set(b.xyz.join(','),{xyz:[...b.xyz],remaining:b.remaining});
       }
       built=Number.isFinite(saved.built)?Math.min(100000,Math.max(0,saved.built)):0;
       usedColors=new Set(Array.isArray(saved.colors)?saved.colors.filter(t=>blocks.some(b=>b.id===t)):[]);
@@ -347,7 +354,10 @@
         if(vKind>14.5&&vKind<15.5){float glow=.5+.5*sin(uTime*1.7+vUV.x*6.0+vUV.y*4.0);c=mix(vec3(1.0,.27,.04),vec3(1.0,.72,.14),glow*.65+n*.18);}
         if(vKind>15.5&&vKind<16.5){float seam=step(.09,fract(vUV.y*3.0))*step(.045,fract(vUV.x*2.0+floor(vUV.y*3.0)*.5));c=mix(vec3(.77,.69,.56),c,seam);}
         if(vKind>16.5&&vKind<17.5){float pane=step(.1,vUV.x)*step(.1,vUV.y)*step(vUV.x,.9)*step(vUV.y,.9);c=mix(vec3(.93,.91,.81),c,pane);}
-        if(vKind>18.5&&vKind<19.5)c=texture2D(uBombAtlas,vec2((floor(vCountdown+.5)+clamp(1.0-vUV.x,.01,.99))/12.0,clamp(vUV.y,.01,.99))).rgb;
+        if((vKind>18.5&&vKind<19.5)||(vKind>20.5&&vKind<22.5)){
+          float row=vKind<19.5?0.0:(vKind<21.5?1.0:2.0);
+          c=texture2D(uBombAtlas,vec2((floor(vCountdown+.5)+clamp(1.0-vUV.x,.01,.99))/12.0,(2.0-row+clamp(vUV.y,.01,.99))/3.0)).rgb;
+        }
         if(uOutline>.5)c=vec3(1.0,.93,.68);
         float fog=smoothstep(uFogRange.x,uFogRange.y,vDistance);
         gl_FragColor=vec4(mix(c,uSky,fog),1.0);
@@ -359,15 +369,18 @@
   gl.useProgram(program);
   const loc={ position:gl.getAttribLocation(program,'aPosition'), color:gl.getAttribLocation(program,'aColor'), uv:gl.getAttribLocation(program,'aUV'), kind:gl.getAttribLocation(program,'aKind'), countdown:gl.getAttribLocation(program,'aCountdown'),atlas:gl.getUniformLocation(program,'uBombAtlas'),vp:gl.getUniformLocation(program,'uVP'), eye:gl.getUniformLocation(program,'uEye'), outline:gl.getUniformLocation(program,'uOutline'), fog:gl.getUniformLocation(program,'uFogRange'),sky:gl.getUniformLocation(program,'uSky'),time:gl.getUniformLocation(program,'uTime') };
   // One offline canvas atlas puts readable countdown digits on every cube face.
-  const atlasCanvas=document.createElement('canvas');atlasCanvas.width=128*12;atlasCanvas.height=128;
+  const atlasCanvas=document.createElement('canvas');atlasCanvas.width=128*12;atlasCanvas.height=128*3;
   const atlasContext=atlasCanvas.getContext('2d');
-  for(let n=0;n<12;n++) {
-    const left=n*128;atlasContext.fillStyle='#e85e55';atlasContext.fillRect(left,0,128,128);
-    atlasContext.fillStyle='#a73736';atlasContext.fillRect(left+7,7,114,114);
-    atlasContext.fillStyle='#fff1cb';atlasContext.fillRect(left+10,23,108,82);
-    atlasContext.textAlign='center';atlasContext.textBaseline='middle';atlasContext.fillStyle='#952e30';
-    atlasContext.font=n===11?'bold 58px sans-serif':'bold 76px monospace';atlasContext.fillText(n===11?'停':String(n),left+64,67);
-  }
+  Object.values(BOMB_TYPES).forEach((bomb,row)=>{
+    for(let n=0;n<12;n++) {
+      const left=n*128,top=row*128;atlasContext.fillStyle=bomb.color;atlasContext.fillRect(left,top,128,128);
+      atlasContext.fillStyle=bomb.rim;atlasContext.fillRect(left+7,top+7,114,114);
+      atlasContext.fillStyle='#fff1cb';atlasContext.fillRect(left+10,top+23,108,82);
+      atlasContext.textAlign='center';atlasContext.textBaseline='middle';atlasContext.fillStyle=bomb.ink;
+      atlasContext.font=n===11?'bold 58px sans-serif':'bold 76px monospace';atlasContext.fillText(n===11?'停':String(n),left+64,top+67);
+      atlasContext.fillStyle='#fff1cb';atlasContext.font='bold 15px sans-serif';atlasContext.fillText(bomb.radius+' 格',left+64,top+114);
+    }
+  });
   const atlasTexture=gl.createTexture();gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,atlasTexture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,atlasCanvas);
   for(const param of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,param,gl.CLAMP_TO_EDGE);
@@ -387,7 +400,7 @@
     const data=[], uv=[[0,0],[0,1],[1,1],[1,0]];
     for(let y=0;y<MAX_Y;y++) for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++) {
       const type=get(x,y,z); if(!type) continue;
-      const countdown=type===19?(bombs.has([x,y,z].join(','))?Math.ceil(bombs.get([x,y,z].join(',')).remaining):11):0;
+      const countdown=isBomb(type)?(bombs.has([x,y,z].join(','))?Math.ceil(bombs.get([x,y,z].join(',')).remaining):11):0;
       for(const face of faces) {
         if(get(x+face.n[0],y+face.n[1],z+face.n[2])) continue;
         let color=colors[type]; if(type===1 && face.n[1]!==1) color=colors[2];
@@ -515,7 +528,7 @@
     const mode=grounded?(speed>.02?'walk':'idle'):vy>.02?'rise':vy<-.02?(falling?'fall':'sink'):'hover';
     if(grounded&&!avatar.grounded){avatar.landing=1;playTone('land');}
     if(mode==='fall'&&avatar.mode!=='fall')playTone('fall');
-    avatar.mode=mode;avatar.grounded=grounded;avatar.phase+=dt*(mode==='walk'?13:mode==='rise'?13.5:mode==='sink'||mode==='fall'?5:mode==='hover'?3.4:3);
+    avatar.mode=mode;avatar.grounded=grounded;avatar.phase+=dt*(mode==='walk'?13:mode==='rise'?24.3:mode==='sink'||mode==='fall'?5:mode==='hover'?6.12:3);
     const smoothing=1-Math.exp(-dt*10);
     for(const state of ['walk','rise','sink','fall','hover'])avatar[state]+=(Number(mode===state)-avatar[state])*smoothing;
     avatar.landing*=Math.exp(-dt*8);avatar.action*=Math.exp(-dt*9);
@@ -577,33 +590,39 @@
     if(!canAct()||document.visibilityState==='hidden'||!Number.isFinite(seconds)||seconds<=0)return;
     const expired=[];let changed=false;
     for(const [key,b] of bombs) {
-      if(get(...b.xyz)!==19){bombs.delete(key);changed=true;continue;}
+      if(!isBomb(get(...b.xyz))){bombs.delete(key);changed=true;continue;}
       const before=Math.ceil(b.remaining);b.remaining=Math.max(0,b.remaining-seconds);
       if(Math.ceil(b.remaining)!==before){changed=true;if(Math.ceil(b.remaining)>0&&Math.ceil(b.remaining)<=3)playTone('tick');}
       if(b.remaining===0)expired.push(key);
     }
-    // A nearby bomb is removed by the blast, with no chain reaction.
-    for(const key of expired)if(bombs.has(key))explode(bombs.get(key));
     for(const burst of bursts)burst.age+=seconds;
     while(bursts.length&&bursts[0].age>1.1)bursts.shift();
+    for(const key of expired)if(bombs.has(key))explode(bombs.get(key));
     if(changed){dirty=true;scheduleSave();}
   }
   function explode(bomb) {
-    const [cx,cy,cz]=bomb.xyz,edits=[];
-    for(let dx=-BLAST_RADIUS;dx<=BLAST_RADIUS;dx++)for(let dy=-BLAST_RADIUS;dy<=BLAST_RADIUS;dy++)for(let dz=-BLAST_RADIUS;dz<=BLAST_RADIUS;dz++) {
-      const xyz=[cx+dx,cy+dy,cz+dz];
-      if(dx*dx+dy*dy+dz*dz>BLAST_RADIUS*BLAST_RADIUS||!inside(...xyz)||xyz[1]===0)continue;
-      const before=get(...xyz);if(!before)continue;
-      edits.push({xyz,before,after:0});set(...xyz,0);changes[xyz.join(',')]=0;bombs.delete(xyz.join(','));
+    const type=get(...bomb.xyz);if(!isBomb(type))return;
+    const queue=[{xyz:[...bomb.xyz],type}],queued=new Set([bomb.xyz.join(',')]),edits=[];
+    // Capture each bomb's own radius before clearing it, then expand without recursion.
+    for(let i=0;i<queue.length;i++) {
+      const {xyz:[cx,cy,cz],type}=queue[i],radius=BOMB_TYPES[type].radius;
+      for(let dx=Math.max(-radius,-cx);dx<=Math.min(radius,SIZE-1-cx);dx++)for(let dy=Math.max(-radius,1-cy);dy<=Math.min(radius,MAX_Y-1-cy);dy++)for(let dz=Math.max(-radius,-cz);dz<=Math.min(radius,SIZE-1-cz);dz++) {
+        if(dx*dx+dy*dy+dz*dz>radius*radius)continue;
+        const xyz=[cx+dx,cy+dy,cz+dz],before=get(...xyz);if(!before)continue;
+        const key=xyz.join(',');
+        if(isBomb(before)&&!queued.has(key)){queued.add(key);queue.push({xyz,type:before});}
+        edits.push({xyz,before,after:0});set(...xyz,0);changes[key]=0;bombs.delete(key);
+      }
+      bursts.push({xyz:[cx+.5,cy+.5,cz+.5],radius,age:0});
     }
     if(edits.length)remember(edits,'explosion');
-    bursts.push({xyz:[cx+.5,cy+.5,cz+.5],age:0});dirty=true;scheduleSave();playTone('explode');
-    showToast('積木炸開了！按「復原」就能還原');
+    dirty=true;scheduleSave();playTone('explode');
+    showToast(queue.length>1?'連鎖炸開 '+queue.length+' 顆！按「復原」就能全部還原':'積木炸開了！按「復原」就能還原');
   }
   function drawBursts(vp) {
     if(!canAct())return;
     for(const burst of bursts)for(let i=0;i<16;i++) {
-      const angle=i*Math.PI*2/16,spread=burst.age*3.5;
+      const angle=i*Math.PI*2/16,spread=burst.age*(2+burst.radius*.8);
       const point=[burst.xyz[0]+Math.cos(angle)*spread,burst.xyz[1]+Math.sin(i*2.1)*spread+burst.age,burst.xyz[2]+Math.sin(angle)*spread,1],clip=[0,0,0,0];
       for(let r=0;r<4;r++)for(let k=0;k<4;k++)clip[r]+=vp[k*4+r]*point[k];
       if(clip[3]<.08)continue;
@@ -624,11 +643,11 @@
     if(before===after) return;
     remember([{xyz:[...xyz],before,after}],action);
     const key=xyz.join(',');bombs.delete(key);
-    if(after===19)bombs.set(key,{xyz:[...xyz],remaining:BOMB_SECONDS});
+    if(isBomb(after))bombs.set(key,{xyz:[...xyz],remaining:BOMB_SECONDS});
     set(...xyz,after); changes[xyz.join(',')]=after; dirty=true;
     if(action==='place') {built++;usedColors.add(selected);}
     avatar.action=1;playTone(action); updateQuests(true); scheduleSave();
-    if(after===19)showToast('10 秒後炸開！拿掉可取消，復原可還原');
+    if(isBomb(after))showToast('10 秒後炸開 '+BOMB_TYPES[after].radius+' 格！附近炸彈會一起爆炸');
   }
   function undo() {
     if(!canAct()) return;
@@ -656,15 +675,17 @@
     if(!blocks.some(b=>b.id===type))return;
     selected=type;
     if(!paletteGroups[paletteGroup].includes(type))renderPalette(Object.keys(paletteGroups).find(group=>paletteGroups[group].includes(type)));
+    if(isBomb(type))$('palette-note').textContent='10 秒倒數 · 半徑 '+BOMB_TYPES[type].radius+' 格 · 可連鎖引爆 · 復原還原';
     document.querySelectorAll('.block-choice').forEach(b=>{ const active=Number(b.dataset.type)===type; b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active)); });
   }
   function renderPalette(group) {
     if(!Object.hasOwn(paletteGroups,group))return;
     paletteGroup=group;$('palette').innerHTML='';
-    $('palette-note').textContent=group==='fun'?'10 秒倒數 · 炸開附近 2 格 · 拿掉取消 · 復原還原':'';
+    $('palette-note').textContent=group==='fun'?'10 秒倒數 · 2 / 5 / 10 格 · 可連鎖引爆':'';
     for(const name of Object.keys(paletteGroups)){$('palette-'+name).setAttribute('aria-pressed',String(name===group));}
     paletteGroups[group].forEach((type,i)=>{
       const block=blocks.find(b=>b.id===type),b=document.createElement('button');b.className='block-choice';b.dataset.type=block.id;b.title=`${block.name}（${i+1}）`;b.setAttribute('aria-label',`選擇${block.name}積木`);b.setAttribute('aria-pressed',String(selected===type));
+      if(isBomb(type)){b.dataset.bomb='true';b.title+=` · 10 秒後炸開半徑 ${BOMB_TYPES[type].radius} 格，可連鎖引爆`;}
       b.classList.toggle('active',selected===type);b.innerHTML=`<span class="key">${i+1}</span><span class="swatch" style="--block:${block.color}"></span><span class="block-name">${block.name}</span>`;
       b.addEventListener('click',()=>choose(block.id));$('palette').appendChild(b);
     });
