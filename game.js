@@ -8,6 +8,16 @@
   if (!gl) { $('welcome').classList.add('hidden'); $('error').classList.remove('hidden'); return; }
   const SIZE = 40, MAX_Y = 40, FLY_LIMIT = 38, LEGACY_SAVE_KEY = 'little-block-world-v1';
   const SAVE_PREFIX = 'little-block-world-v2:', AREA_META_KEY = 'little-block-world-area-v2';
+  const SETTINGS_KEY='little-block-world-settings-v1';
+  const preferences={thirdPerson:true,distance:3.6,sfx:false,music:false,volume:.55};
+  try {
+    const saved=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null');
+    if(saved){for(const key of ['thirdPerson','sfx','music'])if(typeof saved[key]==='boolean')preferences[key]=saved[key];
+      if(Number.isFinite(saved.distance))preferences.distance=Math.max(1.4,Math.min(7.5,saved.distance));
+      if(Number.isFinite(saved.volume))preferences.volume=Math.max(0,Math.min(.85,saved.volume));}
+  } catch { /* Default controls work without saved preferences. */ }
+  const audio=window.BlockAudio.create(preferences);
+  let cameraDistance=preferences.distance;
   const areas = {
     cottage:{name:'小屋世界',icon:'⌂',hint:'小屋、樹木與池塘，替家添一點顏色。',idea:'替小屋蓋個花園或小陽台',sky:[.74,.88,.92],spawn:{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29},material:6},
     street:{name:'道路街景',icon:'▤',hint:'逛街、看車子，蓋出你喜歡的城市。',idea:'替街道蓋一間商店或公車站',sky:[.76,.87,.94],spawn:{x:20.5,y:6,z:35.5,yaw:0,pitch:-.45},material:16},
@@ -47,8 +57,8 @@
   const get = (x,y,z) => inside(x,y,z) ? voxels[index(x,y,z)] : 0;
   const set = (x,y,z,t) => { if (inside(x,y,z)) voxels[index(x,y,z)] = t; };
   let changes = {}, history = [], selected = 6, started = false, hit = null;
-  let built = 0, usedColors = new Set(), achievements = 0, soundOn = false;
-  let dirty = true, saveTimer, toastTimer, audioCtx, meshCount = 0;
+  let built = 0, usedColors = new Set(), achievements = 0;
+  let dirty = true, saveTimer, toastTimer, meshCount = 0, focused=true;
   const keys = new Set(), held = new Set();
   const player = { x:20.5, y:8, z:32.5, yaw:0, pitch:-.29 };
   const aimOffset = { x:0, y:0 };
@@ -56,6 +66,7 @@
   let lastTime = 0;
   const bombs = new Map(), bursts = [];
   const BOMB_SECONDS = 10, BLAST_RADIUS = 2;
+  const avatar={mode:'idle',phase:0,heading:0,walk:0,rise:0,sink:0,fall:0,hover:0,landing:0,action:0,last:{...player},grounded:false,step:0};
 
   const noise = (x,z) => (Math.sin(x*127.1+z*311.7)*43758.5453)%1;
   function terrain(x,z) {
@@ -290,7 +301,7 @@
     } catch { $('save-status').textContent='● 暫存於這次遊戲'; showToast('作品暫存在這次遊戲，重開前請大人幫忙開啟儲存功能');return false; }
   }
   function scheduleSave() { $('save-status').textContent='● 正在收好積木…'; clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,450); }
-  window.addEventListener('pagehide',()=>{ if(started) saveNow(); });
+  window.addEventListener('pagehide',()=>{ audio.suspend();if(started) saveNow(); });
   function updateAreaUI() {
     const area=areas[currentArea];$('area-select').value=currentArea;$('area-hint').textContent=area.hint;
     $('area-icon').textContent=area.icon;$('area-save-note').textContent='各區域獨立存檔';
@@ -302,7 +313,7 @@
     if(!Object.hasOwn(areas,area)||area===currentArea)return;
     clearTimeout(saveTimer);saveNow();
     currentArea=area;changes={};history=[];bombs.clear();bursts.length=0;built=0;usedColors=new Set();achievements=0;
-    makeWorld();home();choose(areas[area].material);$('save-status').textContent='● 新區域，開始創作吧';loadSave();dirty=true;hit=null;updateAreaUI();updateQuests();
+    makeWorld();home();choose(areas[area].material);$('save-status').textContent='● 新區域，開始創作吧';loadSave();resetAvatar();dirty=true;hit=null;updateAreaUI();updateQuests();
     try{localStorage.setItem(AREA_META_KEY,area);}catch{/* In-memory area switching remains available. */}
     showToast('來到'+areas[area].name+'！作品會分開保存');
   }
@@ -363,6 +374,7 @@
   for(const param of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,param,gl.LINEAR);
   gl.uniform1i(loc.atlas,0);
   const mesh=gl.createBuffer();
+  const penguinMesh=gl.createBuffer();
   const faces=[
     {n:[1,0,0],s:.83,v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},
     {n:[-1,0,0],s:.72,v:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]]},
@@ -395,10 +407,25 @@
     for(let c=0;c<4;c++) for(let r=0;r<4;r++) for(let k=0;k<4;k++) out[c*4+r]+=a[k*4+r]*b[c*4+k];
     return out;
   }
-  function fieldOfView(){return ['titanic','taipei101'].includes(currentArea)?Math.PI/2.5:Math.PI/3;}
+  function cameraEye() {
+    if(godView||!preferences.thirdPerson)return {x:player.x,y:player.y,z:player.z,clearance:0};
+    const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw),sp=Math.sin(player.pitch),cp=Math.cos(player.pitch);
+    const distance=cameraDistance,side=Math.min(.85,.48*innerWidth/innerHeight)*Math.min(1,distance/3.6);
+    const offset=[-sy*cp*distance-sy*sp*.22+cy*side,-sp*distance+cp*.22,cy*cp*distance+cy*sp*.22+sy*side];
+    const length=Math.hypot(...offset);let fraction=1;
+    // Sweep the entire camera path so walls cannot hide the penguin or crosshair.
+    for(let travel=.08;travel<=length+.08;travel+=.08) {
+      const f=Math.min(1,travel/length),point=[player.x+offset[0]*f,player.y+offset[1]*f,player.z+offset[2]*f];
+      let blocked=false;
+      for(const dx of [-.08,.08])for(const dy of [-.08,.08])for(const dz of [-.08,.08])if(get(Math.floor(point[0]+dx),Math.floor(point[1]+dy),Math.floor(point[2]+dz)))blocked=true;
+      if(blocked){fraction=Math.max(0,(travel-.16)/length);break;}
+    }
+    return {x:player.x+offset[0]*fraction,y:player.y+offset[1]*fraction,z:player.z+offset[2]*fraction,clearance:length*fraction};
+  }
+  function fieldOfView(){const base=['titanic','taipei101'].includes(currentArea)?Math.PI/2.5:Math.PI/3;return !godView&&!preferences.thirdPerson?Math.max(.55,Math.min(1.55,base*cameraDistance/3.6)):base;}
   function viewProjection() {
     const cy=Math.cos(player.yaw),sy=Math.sin(player.yaw),cp=Math.cos(player.pitch),sp=Math.sin(player.pitch);
-    const right=[cy,0,sy], up=[-sy*sp,cp,cy*sp], back=[-sy*cp,-sp,cy*cp], eye=[player.x,player.y,player.z];
+    const camera=cameraEye(),right=[cy,0,sy], up=[-sy*sp,cp,cy*sp], back=[-sy*cp,-sp,cy*cp], eye=[camera.x,camera.y,camera.z];
     const dot=v=>v.reduce((sum,n,i)=>sum+n*eye[i],0);
     const view=new Float32Array([right[0],up[0],back[0],0,right[1],up[1],back[1],0,right[2],up[2],back[2],0,-dot(right),-dot(up),-dot(back),1]);
     const f=1/Math.tan(fieldOfView()/2), aspect=canvas.width/canvas.height, near=.08, far=godView?300:110;
@@ -419,13 +446,14 @@
     $('aim-label').style.left=`calc(50% + ${aimOffset.x}px)`;$('aim-label').style.top=`calc(50% + ${aimOffset.y+26}px)`;
   }
   function raycast() {
-    const dir=aimDirection();
-    let xyz=[Math.floor(player.x),Math.floor(player.y),Math.floor(player.z)], prev=[...xyz];
-    const origin=[player.x,player.y,player.z], step=dir.map(d=>d>=0?1:-1);
+    const dir=aimDirection(),eye=cameraEye();
+    let xyz=[Math.floor(eye.x),Math.floor(eye.y),Math.floor(eye.z)], prev=[...xyz];
+    const origin=[eye.x,eye.y,eye.z], step=dir.map(d=>d>=0?1:-1);
     const delta=dir.map(d=>Math.abs(d)>1e-8?Math.abs(1/d):Infinity);
     const max=dir.map((d,i)=>Math.abs(d)>1e-8?((xyz[i]+(step[i]>0?1:0)-origin[i])/d):Infinity);
     let distance=0;
-    for(let i=0;i<100 && distance<24;i++) {
+    const reach=24+(preferences.thirdPerson&&!godView?eye.clearance:0);
+    for(let i=0;i<110 && distance<reach;i++) {
       const type=get(...xyz);
       if(type) return {xyz:[...xyz],previous:prev,type,distance};
       prev=[...xyz];
@@ -437,7 +465,7 @@
   function drawOutline(vp) {
     outlineContext.clearRect(0,0,innerWidth,innerHeight);
     if(!hit || !canAct() || godView) return;
-    const [x,y,z]=hit.xyz,paths=[];
+    const [x,y,z]=hit.xyz,paths=[],eye=cameraEye();
     function project(v) {
       const point=[x+v[0],y+v[1],z+v[2],1];
       const clip=[0,0,0,0];
@@ -447,7 +475,7 @@
     }
     for(const face of faces) {
       if(get(x+face.n[0],y+face.n[1],z+face.n[2]))continue;
-      const facing=face.n[0]*(player.x-x-.5-face.n[0]*.5)+face.n[1]*(player.y-y-.5-face.n[1]*.5)+face.n[2]*(player.z-z-.5-face.n[2]*.5);
+      const facing=face.n[0]*(eye.x-x-.5-face.n[0]*.5)+face.n[1]*(eye.y-y-.5-face.n[1]*.5)+face.n[2]*(eye.z-z-.5-face.n[2]*.5);
       if(facing<=0)continue;
       const points=face.v.map(project);if(points.some(p=>!p))continue;paths.push(points);
     }
@@ -470,13 +498,64 @@
 
   function showToast(text) { $('toast').textContent=text; $('toast').classList.add('visible'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2600); }
   function playTone(kind) {
-    if(!soundOn) return;
-    try {
-      audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();
-      audioCtx.resume();
-      const now=audioCtx.currentTime, notes=kind==='win'?[523.25,659.25,783.99]:[kind==='remove'?330:523.25];
-      notes.forEach((hz,i)=>{ const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(); osc.type='sine'; osc.frequency.value=hz; gain.gain.setValueAtTime(0,now+i*.10); gain.gain.linearRampToValueAtTime(.09,now+i*.10+.01); gain.gain.exponentialRampToValueAtTime(.001,now+i*.10+.22); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now+i*.10); osc.stop(now+i*.10+.23); });
-    } catch { /* Audio is optional. */ }
+    audio.play(kind,selected);
+  }
+  function onGround(p=player) {
+    const feet=p.y-EYE_HEIGHT;
+    if(feet<=1+EPSILON)return true;
+    for(const dx of [-.16,.16])for(const dz of [-.16,.16])if(get(Math.floor(p.x+dx),Math.floor(feet-.035),Math.floor(p.z+dz)))return true;
+    return false;
+  }
+  function resetAvatar() {
+    Object.assign(avatar,{mode:onGround()?'idle':'hover',heading:player.yaw,walk:0,rise:0,sink:0,fall:0,hover:0,landing:0,action:0,grounded:onGround(),last:{...player},step:0});
+  }
+  function updateAvatar(dt) {
+    if(godView||dt<=0)return;
+    const dx=player.x-avatar.last.x,dz=player.z-avatar.last.z,vy=(player.y-avatar.last.y)/dt,speed=Math.hypot(dx,dz)/dt,grounded=onGround();
+    const mode=grounded?(speed>.02?'walk':'idle'):vy>.02?'rise':vy<-.02?(falling?'fall':'sink'):'hover';
+    if(grounded&&!avatar.grounded){avatar.landing=1;playTone('land');}
+    if(mode==='fall'&&avatar.mode!=='fall')playTone('fall');
+    avatar.mode=mode;avatar.grounded=grounded;avatar.phase+=dt*(mode==='walk'?13:mode==='rise'?12:mode==='sink'||mode==='fall'?5:3);
+    const smoothing=1-Math.exp(-dt*10);
+    for(const state of ['walk','rise','sink','fall','hover'])avatar[state]+=(Number(mode===state)-avatar[state])*smoothing;
+    avatar.landing*=Math.exp(-dt*8);avatar.action*=Math.exp(-dt*9);
+    const heading=speed>.02?Math.atan2(dx,-dz):avatar.heading,angle=Math.atan2(Math.sin(heading-avatar.heading),Math.cos(heading-avatar.heading));
+    avatar.heading+=angle*(1-Math.exp(-dt*12));
+    const step=Math.floor(avatar.phase/Math.PI);if(mode==='walk'&&step!==avatar.step)playTone('step');avatar.step=step;
+    if(mode==='rise')playTone('fly');if(mode==='sink')playTone('sink');
+    avatar.last={...player};$('character-state').textContent={idle:'小企鵝建築師',walk:'搖搖走路',rise:'拍翅飛高',sink:'張翅飛低',fall:'輕輕落下',hover:'空中停一停'}[mode];
+  }
+  let lastPortrait=0;
+  function drawPenguin(time) {
+    const physical=godView?godView.player:player,eye=cameraEye();
+    if(started&&(godView||preferences.thirdPerson&&eye.clearance>.75)) {
+      const data=window.BlockPenguin.geometry(avatar,{x:physical.x,y:physical.y-EYE_HEIGHT,z:physical.z},avatar.heading,faces);
+      gl.bindBuffer(gl.ARRAY_BUFFER,penguinMesh);gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);bind(penguinMesh);gl.drawArrays(gl.TRIANGLES,0,data.length/10);
+    }
+    if(time-lastPortrait>65){window.BlockPenguin.portrait($('penguin-portrait'),avatar,faces);lastPortrait=time;}
+  }
+  function savePreferences(){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(preferences));}catch{/* World saving has its own feedback. */}}
+  function updateSettingsUI() {
+    for(const [id,key,label] of [['sound','sfx','音效'],['music','music','背景音樂']]) {
+      const active=preferences[key],button=$(id);button.setAttribute('aria-pressed',String(active));button.setAttribute('aria-label',(active?'關閉':'開啟')+label);button.title=label+(active?'：開啟':'：關閉');button.classList.toggle('audio-on',active);
+    }
+    $('volume').value=Math.round(preferences.volume*100);$('help-volume').value=Math.round(preferences.volume*100);
+    $('camera-view').innerHTML=preferences.thirdPerson?'◉<span>第一人稱</span>':'◉<span>看企鵝</span>';
+    $('camera-view').setAttribute('aria-pressed',String(preferences.thirdPerson));$('camera-view').title='切換企鵝視角與第一人稱（F）';
+  }
+  function toggleCamera() {
+    if(!canAct())return;preferences.thirdPerson=!preferences.thirdPerson;updateSettingsUI();savePreferences();
+    showToast(preferences.thirdPerson?'跟著小企鵝探索！滾輪可以拉近、拉遠':'第一人稱：用準心蓋積木，滾輪可以縮放');
+  }
+  function adjustZoom(amount) {
+    if(!canAct())return;preferences.distance=Math.max(1.4,Math.min(7.5,preferences.distance+amount));
+    if(godView)positionGodCamera();savePreferences();
+  }
+  async function toggleAudio(key) {
+    preferences[key]=!preferences[key];audio.configure(preferences);audio.setActive(canAct()&&focused&&document.visibilityState!=='hidden');
+    if(preferences[key]&&!await audio.unlock()){preferences[key]=false;audio.configure(preferences);showToast('這個瀏覽器暫時無法播放聲音，遊戲可以繼續玩');}
+    else {showToast((key==='sfx'?'音效':'背景音樂')+(preferences[key]?'開啟了 ♪':'已關閉'));if(key==='sfx'&&preferences[key])playTone('pick');}
+    updateSettingsUI();savePreferences();
   }
   function updateQuests(celebrate=false) {
     const completed=built>=1?(built>=8?(usedColors.size>=3?3:2):1):0;
@@ -500,7 +579,7 @@
     for(const [key,b] of bombs) {
       if(get(...b.xyz)!==19){bombs.delete(key);changed=true;continue;}
       const before=Math.ceil(b.remaining);b.remaining=Math.max(0,b.remaining-seconds);
-      if(Math.ceil(b.remaining)!==before)changed=true;
+      if(Math.ceil(b.remaining)!==before){changed=true;if(Math.ceil(b.remaining)>0&&Math.ceil(b.remaining)<=3)playTone('tick');}
       if(b.remaining===0)expired.push(key);
     }
     // A nearby bomb is removed by the blast, with no chain reaction.
@@ -518,7 +597,7 @@
       edits.push({xyz,before,after:0});set(...xyz,0);changes[xyz.join(',')]=0;bombs.delete(xyz.join(','));
     }
     if(edits.length)remember(edits,'explosion');
-    bursts.push({xyz:[cx+.5,cy+.5,cz+.5],age:0});dirty=true;scheduleSave();playTone('remove');
+    bursts.push({xyz:[cx+.5,cy+.5,cz+.5],age:0});dirty=true;scheduleSave();playTone('explode');
     showToast('積木炸開了！按「復原」就能還原');
   }
   function drawBursts(vp) {
@@ -548,14 +627,14 @@
     if(after===19)bombs.set(key,{xyz:[...xyz],remaining:BOMB_SECONDS});
     set(...xyz,after); changes[xyz.join(',')]=after; dirty=true;
     if(action==='place') {built++;usedColors.add(selected);}
-    playTone(action); updateQuests(true); scheduleSave();
+    avatar.action=1;playTone(action); updateQuests(true); scheduleSave();
     if(after===19)showToast('10 秒後炸開！拿掉可取消，復原可還原');
   }
   function undo() {
     if(!canAct()) return;
     const item=history.pop(); if(!item){showToast('還沒有要復原的動作，先蓋一蓋吧！');return;}
     for(const edit of item.edits){set(...edit.xyz,edit.before);changes[edit.xyz.join(',')]=edit.before;bombs.delete(edit.xyz.join(','));}
-    bursts.length=0;dirty=true;scheduleSave();playTone('remove');showToast(item.kind==='explosion'?'爆炸已復原！炸彈已停止，再放一次才會倒數':'上一個動作復原了！');
+    bursts.length=0;dirty=true;scheduleSave();playTone('undo');showToast(item.kind==='explosion'?'爆炸已復原！炸彈已停止，再放一次才會倒數':'上一個動作復原了！');
   }
   function clearMovement() { keys.clear();held.clear();lastShiftPress=null;document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
   function updateGodView() {
@@ -568,10 +647,11 @@
     if(!canAct())return;
     clearMovement();falling=false;fallVelocity=0;
     if(godView){Object.assign(player,godView.player);positionAim(godView.aim.x,godView.aim.y);godView=null;showToast('回到剛才的位置了！');}
-    else {const height=(currentArea==='taipei101'?70:42)*Math.max(1,innerHeight/innerWidth);godView={player:{...player},aim:{...aimOffset}};Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-(currentArea==='taipei101'?16:4),18)});positionAim();showToast('從高空看看你的作品，再按一次就回到原位');}
-    updateGodView();
+    else {godView={player:{...player},aim:{...aimOffset}};positionGodCamera();positionAim();showToast('從高空看看作品，滾輪可以拉近、拉遠');}
+    updateGodView();if(!godView)resetAvatar();
   }
-  function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement(); }
+  function positionGodCamera() {const height=Math.max(currentArea==='taipei101'?44:24,(currentArea==='taipei101'?70:42)*Math.max(1,innerHeight/innerWidth)*(cameraDistance/3.6));Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-(currentArea==='taipei101'?16:4),18)});}
+  function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement();resetAvatar(); }
   function choose(type) {
     if(!blocks.some(b=>b.id===type))return;
     selected=type;
@@ -592,15 +672,18 @@
   function pickBlock() {
     if(!canAct()||godView)return;
     const target=raycast();if(!target){showToast('先用準心對準想要的積木');return;}
-    choose(target.type);playTone('place');showToast('選好了：'+blocks.find(b=>b.id===target.type).name+'積木！');
+    choose(target.type);playTone('pick');showToast('選好了：'+blocks.find(b=>b.id===target.type).name+'積木！');
   }
   for(const group of Object.keys(paletteGroups))$('palette-'+group).onclick=()=>renderPalette(group);
   renderPalette(paletteGroup);choose(selected);
   $('area-select').addEventListener('change',e=>{switchArea(e.target.value);e.target.blur();});
-  $('start').onclick=()=>{started=true;$('welcome').classList.add('hidden');showToast('歡迎！拖曳畫面，找一個喜歡的地方開始蓋吧');};
+  $('start').onclick=()=>{started=true;$('welcome').classList.add('hidden');audio.setActive(true);if(preferences.sfx||preferences.music)audio.unlock();showToast('小企鵝出發！拖曳轉頭，滾輪拉近、拉遠');};
   $('help').onclick=()=>{$('help-modal').classList.remove('hidden');keys.clear();held.clear();};
   $('close-help').onclick=()=>$('help-modal').classList.add('hidden');
-  $('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=soundOn?'♫':'♪';$('sound').setAttribute('aria-label',soundOn?'關閉音效':'開啟音效');$('sound').style.background=soundOn?'#f9d58c':'';showToast(soundOn?'音效開啟了 ♪':'音效已關閉');playTone('place');};
+  $('sound').onclick=()=>toggleAudio('sfx');$('music').onclick=()=>toggleAudio('music');
+  $('camera-view').onclick=toggleCamera;$('zoom-in').onclick=()=>adjustZoom(-.5);$('zoom-out').onclick=()=>adjustZoom(.5);
+  for(const id of ['volume','help-volume'])$(id).addEventListener('input',e=>{preferences.volume=Math.max(0,Math.min(.85,Number(e.target.value)/100));audio.configure(preferences);updateSettingsUI();savePreferences();});
+  updateSettingsUI();
   $('place').onclick=()=>edit('place');$('remove').onclick=()=>edit('remove');$('undo').onclick=undo;
   $('home').onclick=()=>{home();showToast('回到'+areas[currentArea].name+'的起點了！');};
   $('god-view').onclick=toggleGodView;
@@ -620,11 +703,13 @@
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight','KeyE','KeyQ','KeyR'].includes(e.code)){e.preventDefault();keys.add(e.code);}
     if(e.repeat)return;
     if(e.code==='KeyE')edit('place');if(e.code==='KeyQ')edit('remove');if(e.code==='KeyZ')undo();if(e.code==='KeyR')pickBlock();
+    if(e.code==='KeyF'){e.preventDefault();toggleCamera();}
     const digit=Number(e.key);if(digit>=1 && digit<=paletteGroups[paletteGroup].length)choose(paletteGroups[paletteGroup][digit-1]);
   }
   document.addEventListener('keydown',handleKeyDown);
   document.addEventListener('keyup',e=>keys.delete(e.code));
-  window.addEventListener('blur',()=>{clearMovement();drag=null;});
+  window.addEventListener('blur',()=>{focused=false;clearMovement();drag=null;audio.setActive(false);});
+  window.addEventListener('focus',()=>{focused=true;if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();});
   document.querySelectorAll('[data-move]').forEach(b=>{
     b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(canAct()){held.add(b.dataset.move);b.classList.add('held');}});
     const release=()=>{held.delete(b.dataset.move);b.classList.remove('held');};b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);
@@ -640,6 +725,7 @@
   });
   canvas.addEventListener('pointerup',e=>{if(drag&&drag.id===e.pointerId){if(drag.distance<6)edit(drag.button===2?'remove':'place');drag=null;}});
   canvas.addEventListener('pointercancel',()=>drag=null);
+  canvas.addEventListener('wheel',e=>{if(!canAct())return;e.preventDefault();const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?innerHeight:1);adjustZoom(Math.max(-.6,Math.min(.6,delta*.005)));},{passive:false});
   function collides(x,y,z) {
     for(let bx=Math.floor(x-BODY_RADIUS+EPSILON);bx<=Math.floor(x+BODY_RADIUS-EPSILON);bx++) for(let bz=Math.floor(z-BODY_RADIUS+EPSILON);bz<=Math.floor(z+BODY_RADIUS-EPSILON);bz++) for(let by=Math.floor(y-EYE_HEIGHT+EPSILON);by<=Math.floor(y+HEAD_HEIGHT-EPSILON);by++) if(get(bx,by,bz))return true;
     return false;
@@ -676,15 +762,17 @@
   let lastAim='';
   function frame(time) {
     const elapsed=lastTime?Math.max(0,(time-lastTime)/1000):0;lastTime=time;
-    if(canAct()){move(Math.min(elapsed,.04));updateBombs(elapsed);}
+    if(Math.abs(cameraDistance-preferences.distance)>.0001){cameraDistance+=(preferences.distance-cameraDistance)*(1-Math.exp(-Math.min(elapsed,.04)*10));if(godView)positionGodCamera();}
+    const active=canAct()&&document.visibilityState!=='hidden';audio.setActive(active&&focused);audio.tick();
+    if(active){const dt=Math.min(elapsed,.04);move(dt);updateAvatar(dt);updateBombs(elapsed);}
     if(dirty)rebuild();
-    const vp=viewProjection();
-    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,player.x,player.y,player.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);gl.uniform3f(loc.sky,...areas[currentArea].sky);gl.uniform1f(loc.time,time/1000);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);
+    const vp=viewProjection(),eye=cameraEye();
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,eye.x,eye.y,eye.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);gl.uniform3f(loc.sky,...areas[currentArea].sky);gl.uniform1f(loc.time,time/1000);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);drawPenguin(time);
     hit=raycast();drawOutline(vp);drawBursts(vp);
     const aim=godView?'上帝視角 · 按「回到原位」繼續玩':hit?'亮框：E 放積木 / Q 拿掉':'靠近積木，再往下看一看';
     if(aim!==lastAim){$('aim-label').textContent=aim;lastAim=aim;}
     requestAnimationFrame(frame);
   }
-  document.addEventListener('visibilitychange',()=>{lastTime=0;if(started)saveNow();});
-  makeWorld();home();choose(areas[currentArea].material);loadSave();updateAreaUI();updateQuests();requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange',()=>{lastTime=0;if(document.visibilityState==='hidden')audio.suspend();else if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();if(started)saveNow();});
+  makeWorld();home();choose(areas[currentArea].material);loadSave();resetAvatar();updateAreaUI();updateQuests();window.BlockPenguin.portrait($('penguin-portrait'),avatar,faces);requestAnimationFrame(frame);
 })();
