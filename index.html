@@ -13,23 +13,91 @@
   <div class="sky-wash"></div>
   <header>
     <div class="brand"><span class="brand-icon penguin-icon"><canvas id="penguin-portrait" width="96" height="96" role="img" aria-label="立體像素企鵝角色"></canvas></span><div><h1>小小方塊世界</h1><span id="character-state">小企鵝建築師</span></div><span class="creative-tag">自由創作</span></div>
-    <div class="header-actions"><span id="save-status" class="save-status" role="status">● 已準備好</span><label class="volume-control">音量<input id="volume" type="range" min="0" max="85" step="5" value="55" aria-label="音量"></label><button id="sound" class="icon-button" aria-label="開啟音效" aria-pressed="false" title="音效">♪</button><button id="music" class="icon-button" aria-label="開啟背景音樂" aria-pressed="false" title="背景音樂">♫</button><button id="help" class="icon-button" aria-label="遊戲說明" title="遊戲說明">?</button></div>
+    <div class="header-actions">
+      <span id="save-status" class="save-status" role="status">● 已準備好</span>
+      <label class="volume-control">音量<input id="volume" type="range" min="0" max="85" step="5" value="55" aria-label="音量"></label>
+      <button id="sound" class="icon-button" aria-label="開啟音效" aria-pressed="false" title="音效">♪</button>
+      <button id="music" class="icon-button" aria-label="開啟背景音樂" aria-pressed="false" title="背景音樂">♫</button>
+      <button id="controller-toggle" class="icon-button" aria-label="手把與操作設定" title="手把與操作（P）">🎮</button>
+      <button id="help" class="icon-button" aria-label="遊戲說明" title="遊戲說明">?</button>
+    </div>
   </header>
   <aside class="region-panel" aria-label="區域選擇"><div class="region-heading"><label for="area-select">探索區域</label><span id="area-save-note">各區域獨立存檔</span></div><div class="region-select-row"><span id="area-icon" aria-hidden="true">⌂</span><select id="area-select" aria-label="選擇區域"><option value="cottage">小屋世界</option><option value="street">道路街景</option><option value="volcano">火山口</option><option value="meadow">平坦草地</option><option value="titanic">鐵達尼號</option><option value="cars">汽車世界</option><option value="taipei101">台北 101</option></select></div><p id="area-hint">小屋、樹木與池塘，替家添一點顏色。</p></aside>
-  <aside class="quest"><div class="quest-label"><span>✦ 小小建築師</span><span id="quest-progress">1 / 3</span></div><div class="quest-title" id="quest-title">放下第一塊積木</div><p id="quest-detail">選一個喜歡的顏色，按「放積木」！</p><div class="progress-track"><div id="progress-fill"></div></div><div id="stars">☆ ☆ ☆</div></aside>
+  <aside class="quest" id="quest-panel" aria-label="目前區域的成就與統計">
+    <button id="quest-toggle" class="quest-toggle" aria-expanded="true" aria-controls="quest-body" aria-label="收合小小建築師成就清單">
+      <span>✦ 小小建築師</span><span id="stars">☆ ☆ ☆</span><span id="quest-chevron" aria-hidden="true">⌃</span>
+    </button>
+    <div id="quest-body">
+      <div class="quest-label"><span>我的成就</span><span id="quest-progress">1 / 3</span></div>
+      <div class="quest-title" id="quest-title">放下第一塊積木</div>
+      <p id="quest-detail">選一個喜歡的素材，按「放積木」！</p>
+      <div class="progress-track"><div id="progress-fill"></div></div>
+      <ul class="achievement-list"><li id="achievement-first">☆ 放下第一塊積木</li><li id="achievement-eight">☆ 累計蓋 8 塊積木</li><li id="achievement-colors">☆ 使用 3 種積木</li></ul>
+    </div>
+    <div class="build-stats" aria-label="本區域累計操作"><span><strong id="built-count">0</strong>蓋了</span><span><strong id="removed-count">0</strong>拿掉</span><span><strong id="blasted-count">0</strong>炸開</span></div>
+  </aside>
   <div id="crosshair" aria-hidden="true"><i></i><b></b></div>
   <div class="aim-label" id="aim-label">往地面看，就可以放積木</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <div class="side-actions"><button id="camera-view" title="切換企鵝視角與第一人稱（F）" aria-pressed="true">◉<span>第一人稱</span></button><button id="god-view" title="從高空看作品，再按一次回到原位" aria-pressed="false">◎<span>上帝視角</span></button><button id="home" title="回到小屋">⌂<span>回小屋</span></button><button id="undo" title="復原上一個動作">↶<span>復原</span></button><button id="reset" title="重新開始">↻<span>新世界</span></button><div class="zoom-controls" role="group" aria-label="視角縮放"><button id="zoom-in" aria-label="拉近視角">＋</button><button id="zoom-out" aria-label="拉遠視角">−</button></div></div>
-  <div class="movement"><div class="movement-caption">走一走</div><div class="dpad"><button data-move="forward" class="up" aria-label="向前走">▲</button><button data-move="left" class="left" aria-label="向左走">◀</button><button data-move="back" class="down" aria-label="向後走">▼</button><button data-move="right" class="right" aria-label="向右走">▶</button></div><div class="fly-controls"><button data-move="rise" aria-label="往上飛">↑ 飛高</button><button data-move="sink" aria-label="往下飛">↓ 飛低</button></div></div>
-  <div class="build-actions"><button id="remove" class="remove"><span>−</span>拿掉 <small>(Q)</small></button><button id="place" class="place"><span>＋</span>放積木 <small>(E)</small></button></div>
-  <footer><div class="palette-label">我的積木箱 <div class="palette-tabs" role="group" aria-label="積木分類"><button id="palette-color" class="palette-tab" aria-pressed="true">彩色</button><button id="palette-building" class="palette-tab" aria-pressed="false">建築</button><button id="palette-nature" class="palette-tab" aria-pressed="false">自然</button><button id="palette-fun" class="palette-tab" aria-pressed="false">趣味</button></div></div><div id="palette" class="palette" role="group" aria-label="選擇積木"></div><div id="palette-note" class="palette-note" role="status"></div><div class="control-hint">WASD 走路 · 拖曳轉頭 · 滾輪縮放 / F 視角 · E 放 / Q 拆 / R 選素材 · 空白 / Shift 飛高低</div></footer>
-  <div class="modal-backdrop" id="welcome"><section class="modal welcome-card" aria-labelledby="welcome-title"><div class="eyebrow">HELLO, LITTLE BUILDER!</div><div class="welcome-art" aria-hidden="true"><div class="art-cloud c1"></div><div class="art-cloud c2"></div><div class="art-sun"></div><div class="art-island"><div class="art-house"><div class="art-roof"></div><div class="art-window"></div><div class="art-door"></div></div><div class="art-tree"><i></i><b></b></div><span class="art-flower">✿</span></div></div><h2 id="welcome-title">一起蓋出你的夢想！</h2><p>這裡沒有怪物，也不會受傷。<br>帶著小企鵝，用積木蓋出你的想像力。</p><div class="intro-steps"><div><span>✋</span><b>拖一拖</b><small>看看四周</small></div><div><span>▲</span><b>走一走</b><small>探索小島</small></div><div><span>＋</span><b>蓋一蓋</b><small>放上積木</small></div></div><button id="start" class="primary-button">開始玩吧 <span>→</span></button><small class="parent-note">給大人：左上角可以切換區域，每個區域的作品分開保存。</small></section></div>
-  <div class="modal-backdrop hidden" id="help-modal"><section class="modal help-card"><div class="eyebrow">LET'S BUILD SOMETHING</div><h2>小小建築師的工具箱</h2><div class="help-grid"><p><b>走路</b>方向鍵或 W A S D<br>也可以按左下角箭頭，小企鵝身高不到一格，可鑽進一格高的洞</p><p><b>看四周與瞄準</b>按住畫面拖曳轉頭<br>滑鼠在畫面中央附近移動，可以微調準心</p><p><b>放積木 (E)</b>對準黃色亮框，按 ＋ 或 E<br>也可以輕點畫面</p><p><b>拿掉積木 (Q)</b>對準黃色亮框，按 − 或 Q<br>也可以按滑鼠右鍵，網頁右鍵選單已停用</p><p><b>飛高、飛低與落地</b>空白鍵飛高，Shift 飛低<br>快速按兩次 Shift，自由落下；空白鍵可停住</p><p><b>企鵝與縮放視角</b>按 F 或右側按鈕切換企鵝 / 第一人稱<br>滑鼠滾輪或右側 ＋ / − 拉近、拉遠</p><p><b>聲音與音樂</b>右上 ♪ 音效 / ♫ 背景音樂分別開關<br><label class="help-volume">音量 <input id="help-volume" type="range" min="0" max="85" step="5" value="55" aria-label="說明中的音量"></label></p><p><b>上帝視角</b>按「上帝視角」從高空看作品<br>再按「回到原位」，回到剛才的位置與方向</p><p><b>選取素材 (R)</b>對準喜歡的積木後按 R<br>可直接使用同樣的素材，也能切換下方的積木分類</p><p><b>探索不同區域</b>左上角可以選擇七個世界<br>作品、星星各自保存；新世界只重建目前區域</p><p><b>定時炸彈</b>在「趣味」選擇後放下，方塊上倒數 10 秒<br>紅色 2 格、紫色 5 格、藍色 10 格<br>範圍內的炸彈會一起爆炸；復原可全部還原</p><p><b>試錯也沒關係</b>按「復原」撤回上一步<br>按「回小屋 / 回起點」回到目前區域</p></div><p class="help-note">所有積木都是無限的。沒有敵人或付費，玩家不會受傷。炸彈在切換區域、背景分頁或開啟說明時暫停；復原後的炸彈顯示「停」，重新放下才會倒數，仍可被其他炸彈引爆。遊戲不需要網路，音效與原創背景音樂都能離線播放，預設關閉。存檔只留在目前的瀏覽器；清除瀏覽器資料會清除作品。</p><button id="close-help" class="primary-button">我知道了，繼續玩</button></section></div>
+  <div class="side-actions">
+    <button id="gravity" title="Shift 切換重力" aria-pressed="false">↟<span>飄浮中</span></button>
+    <button id="undo" title="復原上一個動作（Z）">↶<span>復原</span></button>
+    <button id="tools-toggle" aria-expanded="false" aria-controls="extra-tools" title="展開視角、回起點和新世界">⚙<span>工具</span></button>
+    <div id="extra-tools" class="extra-tools hidden">
+      <button id="camera-view" title="切換企鵝視角與第一人稱（F）" aria-pressed="true">◉<span>第一人稱</span></button>
+      <button id="god-view" title="從高空看作品，再按一次回到原位" aria-pressed="false">◎<span>上帝視角</span></button>
+      <button id="home" title="回到小屋">⌂<span>回小屋</span></button>
+      <button id="reset" title="只重建目前區域">↻<span>新世界</span></button>
+      <div class="zoom-controls" role="group" aria-label="視角縮放"><button id="zoom-in" aria-label="拉近視角">＋</button><button id="zoom-out" aria-label="拉遠視角">−</button></div>
+    </div>
+  </div>
+  <div class="movement"><div class="movement-caption">走一走</div>
+    <div class="dpad"><button data-move="forward" class="up" aria-label="向前走">▲</button><button data-move="left" class="left" aria-label="向左走">◀</button><button data-move="back" class="down" aria-label="向後走">▼</button><button data-move="right" class="right" aria-label="向右走">▶</button></div>
+    <div class="fly-controls"><button id="rise-button" data-move="rise" aria-label="往上飛">↑ 飛高</button><button id="sink-button" data-move="sink" aria-label="往下飛">↓ 飛低</button></div>
+    <div id="flight-hint" class="flight-hint">空白飛高 · C 飛低</div>
+  </div>
+  <div class="build-actions"><button id="remove" class="remove"><span>−</span>拿掉 <small id="remove-key">(Q)</small></button><button id="place" class="place"><span>＋</span>放積木 <small id="place-key">(E)</small></button></div>
+  <footer><div class="palette-label">我的積木箱 <div class="palette-tabs" role="group" aria-label="積木分類"><button id="palette-color" class="palette-tab" aria-pressed="true">彩色</button><button id="palette-building" class="palette-tab" aria-pressed="false">建築</button><button id="palette-nature" class="palette-tab" aria-pressed="false">自然</button><button id="palette-fun" class="palette-tab" aria-pressed="false">趣味</button></div></div><div id="palette" class="palette" role="group" aria-label="選擇積木"></div><div id="palette-note" class="palette-note" role="status"></div><div class="control-hint" id="control-hint">WASD 走路 · 拖曳轉頭 · 滾輪縮放 · E 放 / Q 拆 · 空白跳 / 飛 · Shift 重力</div></footer>
+  <div class="modal-backdrop" id="welcome"><section class="modal welcome-card" aria-labelledby="welcome-title"><div class="eyebrow">HELLO, LITTLE BUILDER!</div><div class="welcome-art" aria-hidden="true"><div class="art-cloud c1"></div><div class="art-cloud c2"></div><div class="art-sun"></div><div class="art-island"><div class="art-house"><div class="art-roof"></div><div class="art-window"></div><div class="art-door"></div></div><div class="art-tree"><i></i><b></b></div><span class="art-flower">✿</span></div></div><h2 id="welcome-title">一起蓋出你的夢想！</h2><p>這裡沒有怪物，也不會受傷。<br>帶著小企鵝，用積木蓋出你的想像力。</p><div class="intro-steps"><div><span>✋</span><b>拖一拖</b><small>看看四周</small></div><div><span>▲</span><b>走一走</b><small>探索小島</small></div><div><span>＋</span><b>蓋一蓋</b><small>放上積木</small></div></div><button id="start" class="primary-button">開始玩吧 <span>→</span></button><small class="parent-note">給大人：區域作品分開保存。手把先按一下連線，再按 A 開始；🎮 裡有設定說明。</small></section></div>
+  <div class="modal-backdrop hidden" id="help-modal"><section class="modal help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="eyebrow">LET'S BUILD SOMETHING</div><h2 id="help-title">小小建築師的工具箱</h2>
+    <div class="help-grid">
+      <p><b>走路與看四周</b>方向鍵或 WASD；也能按左下箭頭<br>拖曳轉頭，滾輪拉近拉遠；企鵝可鑽過一格高的洞</p>
+      <p><b>放積木 / 拿掉</b>對準黃色亮框，E 放、Q 拆<br>也能用大按鈕；R 選取準心指向的素材</p>
+      <p><b>Shift 切換重力</b>按一下會落地，再按一下恢復飄浮<br>右側會顯示目前模式，落地不會受傷</p>
+      <p><b>空白跳躍 / 飛高</b>重力模式：按一下跳，連按持續飛高<br>飄浮模式：按住飛高，C 飛低，放開就停住</p>
+      <p><b>我的成就與統計</b>點「小小建築師」展開或收合<br>任務完成會自動收合；蓋、拿掉、炸開的累計數字仍可看到</p>
+      <p><b>視角和其他工具</b>右側「工具」有視角、上帝視角、回起點與新世界<br>F 可直接切換企鵝 / 第一人稱</p>
+      <p><b>七個區域</b>左上選擇世界，作品和成就分開保存<br>「新世界」只重建目前區域</p>
+      <p><b>三款定時炸彈</b>趣味箱：紅色 2 格、紫色 5 格、藍色 10 格<br>10 秒倒數，可連鎖引爆；一次復原整串爆炸</p>
+      <p><b>手把也可以玩</b>A 跳 / 飛，B 切換重力，RT 放、LT 拆<br>左搖桿走，右搖桿 / 觸控板轉頭；Menu 開啟手把選單</p>
+      <p><b>聲音與音樂</b>右上 ♪ 音效 / ♫ 背景音樂分開開關<label class="help-volume">音量 <input id="help-volume" type="range" min="0" max="85" step="5" value="55" aria-label="說明中的音量"></label></p>
+    </div>
+    <p class="help-note">積木無限、沒有敵人或付費，玩家不會受傷。選單、說明、背景分頁與離開視窗時暫停重力和倒數。復原後的炸彈顯示「停」，仍可被其他炸彈引爆。累計操作不因復原而扣除；新世界只清除目前區域的作品和統計。</p>
+    <button id="close-help" class="primary-button">我知道了，繼續玩</button>
+  </section></div>
+  <div class="modal-backdrop hidden" id="controller-modal"><section class="modal controller-card" role="dialog" aria-modal="true" aria-labelledby="controller-title">
+    <div class="eyebrow">PLAY WITH A CONTROLLER</div><h2 id="controller-title">手把與操作</h2>
+    <p id="controller-status" class="controller-status" role="status">按一下手把上的按鍵，讓瀏覽器辨識手把</p>
+    <button id="controller-resume" class="primary-button">繼續玩 <small>（A / B / Menu）</small></button>
+    <label class="controller-region">探索區域 <select id="controller-area" aria-label="手把選單中的區域"></select></label>
+    <div class="controller-quick"><button id="controller-gravity">開啟重力模式</button><button id="controller-camera">切換視角</button><button id="controller-god">上帝視角 / 回原位</button><button id="controller-achievements">展開成就清單</button><button id="controller-home">回起點</button><button id="controller-help">操作說明</button><button id="controller-reset" class="quiet-button">新世界（先確認）</button></div>
+    <p id="controller-layout-note" class="controller-layout-note">Steam Controller：左搖桿走路；右觸控板或右搖桿轉頭。</p>
+    <div class="controller-legend"><span><b>A</b> 跳一下 / 按住飛高</span><span><b>B</b> 重力開關</span><span><b>RT / LT</b> 放 / 拿掉</span><span><b>X / Y</b> 復原 / 視角</span><span><b>LB / RB</b> 上一塊 / 下一塊</span><span><b>← / →</b> 切換積木分類</span><span><b>↑ / ↓</b> 拉近 / 拉遠</span><span><b>L3 / R3</b> 選取素材 / 飛低</span><span><b>View</b> 上帝視角</span><span><b>Menu</b> 開啟選單</span></div>
+    <p class="controller-nav-note">選單裡：方向鍵上下選項、左右調整，A 選擇、B 返回。重力模式的 A 要放開再按才會再跳。</p>
+    <details class="controller-settings"><summary>給大人：手把設定與連線方式</summary>
+      <label>操作配置 <select id="controller-profile"><option value="steam">Steam Controller（預設）</option><option value="gamepad">一般手把 / joystick</option></select></label>
+      <label>轉頭速度 <input id="controller-sensitivity" type="range" min="40" max="200" step="10" value="100" aria-label="手把轉頭速度"></label>
+      <label>搖桿防飄移 <input id="controller-deadzone" type="range" min="5" max="40" step="1" value="16" aria-label="手把防飄移範圍"></label>
+      <p>Steam Controller 請在 Steam 把開啟遊戲的 Chrome / Edge 加入「非 Steam 遊戲」，從 Steam 啟動並選「一般手把」配置。初代的右觸控板請映射為右搖桿；有右搖桿的款式可直接使用。若 Steam Input 使用鍵鼠配置，依本遊戲的 E、Q、Space、Shift 等快捷鍵映射也能玩。</p>
+      <label class="raw-controller"><input id="controller-raw" type="checkbox">使用非標準手把配置（排列需符合操作表）</label>
+      <label>非標準手把的轉頭軸 <select id="controller-look-axis"><option value="2">第 3、4 軸（預設）</option><option value="3">第 4、5 軸</option><option value="4">第 5、6 軸</option></select></label>
+    </details>
+  </section></div>
   <div class="modal-backdrop hidden" id="reset-modal"><section class="modal reset-card"><div class="reset-illustration">🌱</div><h2 id="reset-area-name">要重新開始目前區域嗎？</h2><p>只會清除這個區域的作品，恢復原本的地形。<br><b>其他區域的作品與星星都會保留。</b></p><div class="confirm-actions"><button id="cancel-reset">繼續玩這個</button><button id="confirm-reset" class="primary-button">重建這個區域</button></div></section></div>
   <div id="error" class="modal-backdrop hidden"><section class="modal"><h2>這台電腦暫時無法顯示 3D</h2><p>請使用最新版的 Chrome 或 Edge，並在瀏覽器設定開啟硬體加速，再重新開啟遊戲。</p></section></div>
   <script src="penguin.js"></script>
   <script src="audio.js"></script>
-  <script src="game.js"></script>
+  <script src="controller.js"></script><script src="game.js"></script>
 </body>
 </html>

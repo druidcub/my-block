@@ -9,14 +9,21 @@
   const SIZE = 40, MAX_Y = 40, FLY_LIMIT = 38, LEGACY_SAVE_KEY = 'little-block-world-v1';
   const SAVE_PREFIX = 'little-block-world-v2:', AREA_META_KEY = 'little-block-world-area-v2';
   const SETTINGS_KEY='little-block-world-settings-v1';
-  const preferences={thirdPerson:true,distance:3.6,sfx:false,music:false,volume:.55};
+  const preferences={thirdPerson:true,distance:3.6,sfx:false,music:false,volume:.55,gravity:false,controllerProfile:'steam',controllerSensitivity:1,controllerDeadzone:.16,controllerAllowRaw:false,controllerLookAxis:2};
   try {
     const saved=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null');
-    if(saved){for(const key of ['thirdPerson','sfx','music'])if(typeof saved[key]==='boolean')preferences[key]=saved[key];
+    if(saved){for(const key of ['thirdPerson','sfx','music','gravity','controllerAllowRaw'])if(typeof saved[key]==='boolean')preferences[key]=saved[key];
       if(Number.isFinite(saved.distance))preferences.distance=Math.max(1.4,Math.min(7.5,saved.distance));
-      if(Number.isFinite(saved.volume))preferences.volume=Math.max(0,Math.min(.85,saved.volume));}
+      if(Number.isFinite(saved.volume))preferences.volume=Math.max(0,Math.min(.85,saved.volume));
+      if(['steam','gamepad'].includes(saved.controllerProfile))preferences.controllerProfile=saved.controllerProfile;
+      if(Number.isFinite(saved.controllerSensitivity))preferences.controllerSensitivity=Math.max(.4,Math.min(2,saved.controllerSensitivity));
+      if(Number.isFinite(saved.controllerDeadzone))preferences.controllerDeadzone=Math.max(.05,Math.min(.4,saved.controllerDeadzone));
+      if([2,3,4].includes(saved.controllerLookAxis))preferences.controllerLookAxis=saved.controllerLookAxis;}
   } catch { /* Default controls work without saved preferences. */ }
   const audio=window.BlockAudio.create(preferences);
+  const controller=window.BlockController.create(),padButtons=window.BlockController.BUTTON;
+  const padMotion={forward:0,side:0,rise:false,sink:false};
+  let inputSource='keyboard',lastControllerStatus='';
   let cameraDistance=preferences.distance;
   const areas = {
     cottage:{name:'小屋世界',icon:'⌂',hint:'小屋、樹木與池塘，替家添一點顏色。',idea:'替小屋蓋個花園或小陽台',sky:[.74,.88,.92],spawn:{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29},material:6},
@@ -64,12 +71,12 @@
   const get = (x,y,z) => inside(x,y,z) ? voxels[index(x,y,z)] : 0;
   const set = (x,y,z,t) => { if (inside(x,y,z)) voxels[index(x,y,z)] = t; };
   let changes = {}, history = [], selected = 6, started = false, hit = null;
-  let built = 0, usedColors = new Set(), achievements = 0;
+  let built = 0, removed = 0, blasted = 0, usedColors = new Set(), achievements = 0, questExpanded = null;
   let dirty = true, saveTimer, toastTimer, meshCount = 0, focused=true;
   const keys = new Set(), held = new Set();
   const player = { x:20.5, y:8, z:32.5, yaw:0, pitch:-.29 };
   const aimOffset = { x:0, y:0 };
-  let falling = false, fallVelocity = 0, lastShiftPress = null, godView = null;
+  let falling = false, verticalVelocity = 0, godView = null;
   let lastTime = 0;
   const bombs = new Map(), bursts = [];
   const BOMB_SECONDS = 10;
@@ -266,7 +273,7 @@
 
   function saveKey(area=currentArea){return SAVE_PREFIX+area;}
   function snapshot() {
-    return {version:2,area:currentArea,changes:{...changes},bombs:[...bombs.values()].map(b=>({xyz:[...b.xyz],remaining:b.remaining})),built,colors:[...usedColors],achievements,selected,player:{...(godView?godView.player:player)},aim:{...(godView?godView.aim:aimOffset)}};
+    return {version:2,area:currentArea,changes:{...changes},bombs:[...bombs.values()].map(b=>({xyz:[...b.xyz],remaining:b.remaining})),built,removed,blasted,colors:[...usedColors],achievements,selected,player:{...(godView?godView.player:player)},aim:{...(godView?godView.aim:aimOffset)}};
   }
   function validCamera(p) {
     return p&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(p[k]))&&p.x>=.4&&p.x<=SIZE-.4&&p.z>=.4&&p.z<=SIZE-.4&&p.y>=MIN_EYE&&p.y<=FLY_LIMIT&&Math.abs(p.pitch)<=1.35&&!collides(p.x,p.y,p.z);
@@ -288,6 +295,8 @@
         if(b&&Array.isArray(b.xyz)&&b.xyz.length===3&&b.xyz.every(Number.isInteger)&&inside(...b.xyz)&&b.xyz[1]>0&&isBomb(get(...b.xyz))&&Number.isFinite(b.remaining)&&b.remaining>0&&b.remaining<=BOMB_SECONDS)bombs.set(b.xyz.join(','),{xyz:[...b.xyz],remaining:b.remaining});
       }
       built=Number.isFinite(saved.built)?Math.min(100000,Math.max(0,saved.built)):0;
+      removed=Number.isFinite(saved.removed)?Math.min(1000000,Math.max(0,Math.floor(saved.removed))):0;
+      blasted=Number.isFinite(saved.blasted)?Math.min(1000000,Math.max(0,Math.floor(saved.blasted))):0;
       usedColors=new Set(Array.isArray(saved.colors)?saved.colors.filter(t=>blocks.some(b=>b.id===t)):[]);
       achievements=Number.isInteger(saved.achievements)?Math.max(0,Math.min(3,saved.achievements)):0;
       if(blocks.some(b=>b.id===saved.selected))choose(saved.selected);
@@ -311,6 +320,7 @@
   window.addEventListener('pagehide',()=>{ audio.suspend();if(started) saveNow(); });
   function updateAreaUI() {
     const area=areas[currentArea];$('area-select').value=currentArea;$('area-hint').textContent=area.hint;
+    $('controller-area').value=currentArea;
     $('area-icon').textContent=area.icon;$('area-save-note').textContent='各區域獨立存檔';
     $('home').innerHTML='⌂<span>'+(currentArea==='cottage'?'回小屋':'回起點')+'</span>';
     $('home').title=currentArea==='cottage'?'回到小屋':'回到目前區域的起點';
@@ -319,7 +329,7 @@
   function switchArea(area) {
     if(!Object.hasOwn(areas,area)||area===currentArea)return;
     clearTimeout(saveTimer);saveNow();
-    currentArea=area;changes={};history=[];bombs.clear();bursts.length=0;built=0;usedColors=new Set();achievements=0;
+    currentArea=area;changes={};history=[];bombs.clear();bursts.length=0;built=0;removed=0;blasted=0;usedColors=new Set();achievements=0;questExpanded=null;
     makeWorld();home();choose(areas[area].material);$('save-status').textContent='● 新區域，開始創作吧';loadSave();resetAvatar();dirty=true;hit=null;updateAreaUI();updateQuests();
     try{localStorage.setItem(AREA_META_KEY,area);}catch{/* In-memory area switching remains available. */}
     showToast('來到'+areas[area].name+'！作品會分開保存');
@@ -516,7 +526,7 @@
   function onGround(p=player) {
     const feet=p.y-EYE_HEIGHT;
     if(feet<=1+EPSILON)return true;
-    for(const dx of [-.16,.16])for(const dz of [-.16,.16])if(get(Math.floor(p.x+dx),Math.floor(feet-.035),Math.floor(p.z+dz)))return true;
+    for(const dx of [-.16,.16])for(const dz of [-.16,.16])if(get(Math.floor(p.x+dx),Math.floor(feet-EPSILON*2),Math.floor(p.z+dz)))return true;
     return false;
   }
   function resetAvatar() {
@@ -555,6 +565,32 @@
     $('volume').value=Math.round(preferences.volume*100);$('help-volume').value=Math.round(preferences.volume*100);
     $('camera-view').innerHTML=preferences.thirdPerson?'◉<span>第一人稱</span>':'◉<span>看企鵝</span>';
     $('camera-view').setAttribute('aria-pressed',String(preferences.thirdPerson));$('camera-view').title='切換企鵝視角與第一人稱（F）';
+    updateGravityUI();
+    $('controller-profile').value=preferences.controllerProfile;
+    $('controller-sensitivity').value=Math.round(preferences.controllerSensitivity*100);
+    $('controller-deadzone').value=Math.round(preferences.controllerDeadzone*100);
+    $('controller-raw').checked=preferences.controllerAllowRaw;
+    $('controller-look-axis').value=preferences.controllerLookAxis;
+    $('controller-layout-note').textContent=preferences.controllerProfile==='steam'?'Steam Controller：左搖桿走路；右觸控板或右搖桿轉頭。':'一般手把：左搖桿走路，右搖桿轉頭。';
+  }
+  function updateGravityUI() {
+    const enabled=preferences.gravity;
+    $('gravity').innerHTML=enabled?'↓<span>重力開</span>':'↟<span>飄浮中</span>';
+    $('gravity').setAttribute('aria-pressed',String(enabled));$('gravity').title='Shift 切換重力；目前'+(enabled?'會落地，空白跳躍':'無重力，空白飛高');
+    $('rise-button').textContent=enabled?'↑ 跳一下':'↑ 飛高';$('rise-button').setAttribute('aria-label',enabled?'跳一下，連按可飛高':'往上飛');
+    $('sink-button').textContent=enabled?'↓ 落下':'↓ 飛低';$('sink-button').setAttribute('aria-label',enabled?'停止跳躍並往下落':'往下飛');
+    $('controller-gravity').textContent=enabled?'切成飄浮模式':'開啟重力模式';
+    $('flight-hint').textContent=enabled?'空白跳躍 · 連按飛高':'空白飛高 · C 飛低';
+  }
+  function toggleGravity() {
+    if(!canAct()||godView)return;
+    preferences.gravity=!preferences.gravity;verticalVelocity=0;falling=preferences.gravity&&!onGround();
+    updateGravityUI();savePreferences();
+    showToast(preferences.gravity?'重力開！空白跳一下，連按可以飛高':'飄浮模式！放開就停住，空白飛高、C 飛低');
+  }
+  function jump() {
+    if(!canAct()||godView)return;
+    if(preferences.gravity){verticalVelocity=8;falling=false;}
   }
   function toggleCamera() {
     if(!canAct())return;preferences.thirdPerson=!preferences.thirdPerson;updateSettingsUI();savePreferences();
@@ -571,6 +607,7 @@
     updateSettingsUI();savePreferences();
   }
   function updateQuests(celebrate=false) {
+    const wasComplete=achievements===3;
     const completed=built>=1?(built>=8?(usedColors.size>=3?3:2):1):0;
     if(completed>achievements) { achievements=completed; if(celebrate){showToast(['','✦ 太棒了！第一塊積木！','✦ 你是小小建築師了！','✦ 三顆星！繼續蓋你的夢想吧！'][completed]);playTone('win');} }
     const q=Math.min(achievements,3);
@@ -579,6 +616,20 @@
     $('quest-title').textContent=titles[q]; $('quest-detail').textContent=details[q]; $('quest-progress').textContent=q===3?'完成！':`${q+1} / 3`;
     $('stars').textContent=Array.from({length:3},(_,i)=>i<q?'★':'☆').join(' ');
     $('progress-fill').style.width=`${q===0?0:q===1?Math.min(built/8,1)*100:q===2?Math.min(usedColors.size/3,1)*100:100}%`;
+    if(questExpanded===null||(!wasComplete&&q===3))questExpanded=q<3;
+    for(const [id,done,label] of [['achievement-first',built>=1,'放下第一塊積木'],['achievement-eight',built>=8,'累計蓋 8 塊積木'],['achievement-colors',usedColors.size>=3,'使用 3 種積木']]) {
+      $(id).textContent=(done?'★ ':'☆ ')+label;$(id).classList.toggle('earned',done);
+    }
+    for(const [id,count,label] of [['built-count',built,'累計放置'],['removed-count',removed,'手動拿掉'],['blasted-count',blasted,'炸開方塊']]) {
+      $(id).textContent=count>=10000?(count/10000).toFixed(1)+'萬':String(count);$(id).setAttribute('aria-label',label+' '+count+' 塊');
+    }
+    updateQuestPanel();
+  }
+  function updateQuestPanel() {
+    $('quest-body').classList.toggle('hidden',!questExpanded);$('quest-panel').classList.toggle('compact',!questExpanded);
+    $('quest-toggle').setAttribute('aria-expanded',String(questExpanded));$('quest-toggle').setAttribute('aria-label',(questExpanded?'收合':'展開')+'小小建築師成就清單');
+    $('quest-chevron').textContent=questExpanded?'⌃':'⌄';
+    $('controller-achievements').textContent=questExpanded?'收合成就清單':'展開成就清單';
   }
   function canAct() { return started && !document.querySelector('.modal-backdrop:not(.hidden)'); }
   function occupied(x,y,z) {
@@ -615,7 +666,7 @@
       }
       bursts.push({xyz:[cx+.5,cy+.5,cz+.5],radius,age:0});
     }
-    if(edits.length)remember(edits,'explosion');
+    if(edits.length){remember(edits,'explosion');blasted+=edits.length;updateQuests();}
     dirty=true;scheduleSave();playTone('explode');
     showToast(queue.length>1?'連鎖炸開 '+queue.length+' 顆！按「復原」就能全部還原':'積木炸開了！按「復原」就能還原');
   }
@@ -645,7 +696,7 @@
     const key=xyz.join(',');bombs.delete(key);
     if(isBomb(after))bombs.set(key,{xyz:[...xyz],remaining:BOMB_SECONDS});
     set(...xyz,after); changes[xyz.join(',')]=after; dirty=true;
-    if(action==='place') {built++;usedColors.add(selected);}
+    if(action==='place') {built++;usedColors.add(selected);}else if(before)removed++;
     avatar.action=1;playTone(action); updateQuests(true); scheduleSave();
     if(isBomb(after))showToast('10 秒後炸開 '+BOMB_TYPES[after].radius+' 格！附近炸彈會一起爆炸');
   }
@@ -655,22 +706,22 @@
     for(const edit of item.edits){set(...edit.xyz,edit.before);changes[edit.xyz.join(',')]=edit.before;bombs.delete(edit.xyz.join(','));}
     bursts.length=0;dirty=true;scheduleSave();playTone('undo');showToast(item.kind==='explosion'?'爆炸已復原！炸彈已停止，再放一次才會倒數':'上一個動作復原了！');
   }
-  function clearMovement() { keys.clear();held.clear();lastShiftPress=null;document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
+  function clearMovement() { keys.clear();held.clear();Object.assign(padMotion,{forward:0,side:0,rise:false,sink:false});controller.reset();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
   function updateGodView() {
     const active=Boolean(godView),button=$('god-view');
     button.innerHTML=active?'◎<span>回到原位</span>':'◎<span>上帝視角</span>';
     button.setAttribute('aria-pressed',String(active));button.title=active?'回到剛才的位置與方向':'從高空看作品，再按一次回到原位';
-    document.querySelectorAll('[data-move], #place, #remove').forEach(b=>b.disabled=active);
+    document.querySelectorAll('[data-move], #place, #remove, #gravity, #controller-gravity').forEach(b=>b.disabled=active);
   }
   function toggleGodView() {
     if(!canAct())return;
-    clearMovement();falling=false;fallVelocity=0;
+    clearMovement();falling=false;verticalVelocity=0;
     if(godView){Object.assign(player,godView.player);positionAim(godView.aim.x,godView.aim.y);godView=null;showToast('回到剛才的位置了！');}
     else {godView={player:{...player},aim:{...aimOffset}};positionGodCamera();positionAim();showToast('從高空看看作品，滾輪可以拉近、拉遠');}
     updateGodView();if(!godView)resetAvatar();
   }
   function positionGodCamera() {const height=Math.max(currentArea==='taipei101'?44:24,(currentArea==='taipei101'?70:42)*Math.max(1,innerHeight/innerWidth)*(cameraDistance/3.6));Object.assign(player,{x:20.5,y:height,z:38.5,yaw:0,pitch:-Math.atan2(height-(currentArea==='taipei101'?16:4),18)});}
-  function home() { godView=null;updateGodView();falling=false;fallVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement();resetAvatar(); }
+  function home() { godView=null;updateGodView();falling=false;verticalVelocity=0;Object.assign(player,areas[currentArea].spawn);positionAim();clearMovement();resetAvatar(); }
   function choose(type) {
     if(!blocks.some(b=>b.id===type))return;
     selected=type;
@@ -695,51 +746,144 @@
     const target=raycast();if(!target){showToast('先用準心對準想要的積木');return;}
     choose(target.type);playTone('pick');showToast('選好了：'+blocks.find(b=>b.id===target.type).name+'積木！');
   }
+  function setInputSource(source) {
+    if(inputSource===source)return;
+    inputSource=source;if(source==='controller')positionAim();updateInputHints();
+  }
+  function updateInputHints() {
+    const pad=inputSource==='controller';document.body.classList.toggle('using-controller',pad);
+    $('place-key').textContent=pad?'(RT)':'(E)';$('remove-key').textContent=pad?'(LT)':'(Q)';
+    $('control-hint').textContent=pad?'左搖桿走路 · 右搖桿 / 觸控板轉頭 · A 跳 / 飛 · B 重力 · LB / RB 換積木 · Menu 選單':'WASD 走路 · 拖曳轉頭 · 滾輪縮放 · E 放 / Q 拆 · 空白跳 / 飛 · Shift 重力';
+  }
+  function setTools(expanded) {
+    $('extra-tools').classList.toggle('hidden',!expanded);$('tools-toggle').setAttribute('aria-expanded',String(expanded));
+  }
+  function openModal(id) {
+    for(const other of ['help-modal','reset-modal','controller-modal'])$(other).classList.add('hidden');
+    if(id==='controller-modal')$('controller-area').value=currentArea;
+    $(id).classList.remove('hidden');clearMovement();setTools(false);
+    const first=id==='controller-modal'?$('controller-resume'):id==='reset-modal'?$('cancel-reset'):$('close-help');first.focus();
+  }
+  function closeControllerMenu(){$('controller-modal').classList.add('hidden');clearMovement();}
+  function controllerQuick(action){closeControllerMenu();action();}
+  function changePalette(direction) {
+    const groups=Object.keys(paletteGroups),next=groups[(groups.indexOf(paletteGroup)+direction+groups.length)%groups.length];
+    renderPalette(next);choose(paletteGroups[next][0]);playTone('pick');
+  }
+  function cycleMaterial(direction) {
+    const group=paletteGroups[paletteGroup],current=group.indexOf(selected);
+    choose(group[current<0?0:(current+direction+group.length)%group.length]);playTone('pick');
+  }
+  function handleControllerMenu(state,modal) {
+    if(state.pressed.has(padButtons.gravity)||state.pressed.has(padButtons.menu)) {
+      if(modal.id==='reset-modal')$('cancel-reset').onclick();
+      else modal.classList.add('hidden');clearMovement();return;
+    }
+    const choices=Array.from(modal.querySelectorAll('button,select,input,summary')).filter(e=>!e.disabled&&e.getClientRects().length);
+    if(!choices.length)return;
+    let target=document.activeElement,index=choices.indexOf(target);
+    if(index<0){index=0;target=choices[0];target.focus();}
+    const direction=Number(state.repeat.has(padButtons.down))-Number(state.repeat.has(padButtons.up));
+    if(direction){index=(index+direction+choices.length)%choices.length;target=choices[index];target.focus();}
+    const adjust=Number(state.repeat.has(padButtons.right))-Number(state.repeat.has(padButtons.left));
+    if(adjust&&target.tagName==='SELECT') {
+      target.selectedIndex=(target.selectedIndex+adjust+target.options.length)%target.options.length;
+      if(target.id!=='controller-area')target.dispatchEvent(new Event('change',{bubbles:true}));
+    } else if(adjust&&target.type==='range') {
+      target.value=Math.max(Number(target.min),Math.min(Number(target.max),Number(target.value)+adjust*Number(target.step||1)));target.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    if(state.pressed.has(padButtons.jump)) {
+      if(target.tagName==='SELECT'){if(target.id!=='controller-area')target.selectedIndex=(target.selectedIndex+1)%target.options.length;target.dispatchEvent(new Event('change',{bubbles:true}));}
+      else if(target.type!=='range')target.click();
+    }
+  }
+  function readGamepads(){try{return typeof navigator!=='undefined'&&typeof navigator.getGamepads==='function'?navigator.getGamepads():[];}catch{return [];}}
+  function updateController(dt,time,pads=readGamepads()) {
+    const modal=document.querySelector('.modal-backdrop:not(.hidden)'),mode=!focused||document.visibilityState==='hidden'?'paused':!started?'welcome':modal?'menu':'play';
+    const state=controller.poll(pads,time,mode,{deadzone:preferences.controllerDeadzone,allowRaw:preferences.controllerAllowRaw,lookAxis:preferences.controllerLookAxis});
+    const status=state.connected?(state.usable?'已連線：':'已找到，需一般手把配置：')+state.id:'按一下手把上的按鍵，讓瀏覽器辨識手把';
+    if(status!==lastControllerStatus){lastControllerStatus=status;$('controller-status').textContent=status;$('controller-toggle').classList.toggle('controller-ready',state.connected&&state.usable);$('controller-toggle').setAttribute('aria-label',state.connected&&state.usable?'手把已連線，開啟手把選單':'手把與操作設定');$('start').innerHTML=state.connected&&state.usable?'開始玩吧 <span>Ⓐ</span>':'開始玩吧 <span>→</span>';}
+    Object.assign(padMotion,{forward:0,side:0,rise:false,sink:false});
+    if(mode==='paused'||!state.usable){if(!state.connected&&inputSource==='controller')setInputSource('keyboard');return;}
+    if(state.active)setInputSource('controller');
+    if(mode==='welcome'){if(state.pressed.has(padButtons.jump))$('start').onclick();return;}
+    if(mode==='menu'){handleControllerMenu(state,modal);return;}
+    if(state.pressed.has(padButtons.menu)){openModal('controller-modal');return;}
+    Object.assign(padMotion,{forward:-state.move.y,side:state.move.x,rise:state.down.has(padButtons.jump),sink:state.down.has(padButtons.sink)});
+    player.yaw+=state.look.x*dt*2.2*preferences.controllerSensitivity;
+    player.pitch=Math.max(-1.35,Math.min(1.25,player.pitch-state.look.y*dt*1.6*preferences.controllerSensitivity));
+    if(state.pressed.has(padButtons.gravity))toggleGravity();if(state.pressed.has(padButtons.jump))jump();
+    if(state.pressed.has(padButtons.camera))toggleCamera();if(state.pressed.has(padButtons.god))toggleGodView();
+    if(state.pressed.has(padButtons.undo))undo();if(state.pressed.has(padButtons.pick))pickBlock();
+    if(state.pressed.has(padButtons.previous))cycleMaterial(-1);if(state.pressed.has(padButtons.next))cycleMaterial(1);
+    if(state.pressed.has(padButtons.left))changePalette(-1);if(state.pressed.has(padButtons.right))changePalette(1);
+    if(state.repeat.has(padButtons.up))adjustZoom(-.5);if(state.repeat.has(padButtons.down))adjustZoom(.5);
+    if(state.repeat.has(padButtons.place))edit('place');else if(state.repeat.has(padButtons.remove))edit('remove');
+  }
   for(const group of Object.keys(paletteGroups))$('palette-'+group).onclick=()=>renderPalette(group);
   renderPalette(paletteGroup);choose(selected);
   $('area-select').addEventListener('change',e=>{switchArea(e.target.value);e.target.blur();});
   $('start').onclick=()=>{started=true;$('welcome').classList.add('hidden');audio.setActive(true);if(preferences.sfx||preferences.music)audio.unlock();showToast('小企鵝出發！拖曳轉頭，滾輪拉近、拉遠');};
-  $('help').onclick=()=>{$('help-modal').classList.remove('hidden');keys.clear();held.clear();};
-  $('close-help').onclick=()=>$('help-modal').classList.add('hidden');
+  $('help').onclick=()=>openModal('help-modal');
+  $('close-help').onclick=()=>{$('help-modal').classList.add('hidden');clearMovement();};
   $('sound').onclick=()=>toggleAudio('sfx');$('music').onclick=()=>toggleAudio('music');
   $('camera-view').onclick=toggleCamera;$('zoom-in').onclick=()=>adjustZoom(-.5);$('zoom-out').onclick=()=>adjustZoom(.5);
   for(const id of ['volume','help-volume'])$(id).addEventListener('input',e=>{preferences.volume=Math.max(0,Math.min(.85,Number(e.target.value)/100));audio.configure(preferences);updateSettingsUI();savePreferences();});
   updateSettingsUI();
+  updateInputHints();
+  $('gravity').onclick=toggleGravity;
+  $('quest-toggle').onclick=()=>{questExpanded=!questExpanded;updateQuestPanel();};
+  $('tools-toggle').onclick=()=>setTools($('extra-tools').classList.contains('hidden'));
+  $('controller-toggle').onclick=()=>openModal('controller-modal');
+  $('controller-resume').onclick=closeControllerMenu;
+  $('controller-gravity').onclick=()=>controllerQuick(toggleGravity);
+  $('controller-camera').onclick=()=>controllerQuick(toggleCamera);
+  $('controller-god').onclick=()=>controllerQuick(toggleGodView);
+  $('controller-home').onclick=()=>controllerQuick(home);
+  $('controller-achievements').onclick=()=>controllerQuick(()=>{questExpanded=!questExpanded;updateQuestPanel();});
+  $('controller-help').onclick=()=>openModal('help-modal');
+  $('controller-reset').onclick=()=>controllerQuick(()=>$('reset').onclick());
+  $('controller-area').innerHTML=$('area-select').innerHTML;
+  $('controller-area').addEventListener('change',e=>controllerQuick(()=>switchArea(e.target.value)));
+  for(const [id,key] of [['controller-sensitivity','controllerSensitivity'],['controller-deadzone','controllerDeadzone']])$(id).addEventListener('input',e=>{preferences[key]=Number(e.target.value)/100;savePreferences();});
+  $('controller-profile').addEventListener('change',e=>{preferences.controllerProfile=e.target.value;updateSettingsUI();savePreferences();});
+  $('controller-raw').addEventListener('change',e=>{preferences.controllerAllowRaw=e.target.checked;controller.reset();savePreferences();});
+  $('controller-look-axis').addEventListener('change',e=>{preferences.controllerLookAxis=Number(e.target.value);controller.reset();savePreferences();});
   $('place').onclick=()=>edit('place');$('remove').onclick=()=>edit('remove');$('undo').onclick=undo;
   $('home').onclick=()=>{home();showToast('回到'+areas[currentArea].name+'的起點了！');};
   $('god-view').onclick=toggleGodView;
-  $('reset').onclick=()=>{$('reset-area-name').textContent='要重新開始「'+areas[currentArea].name+'」嗎？';$('reset-modal').classList.remove('hidden');clearMovement();};
+  $('reset').onclick=()=>{$('reset-area-name').textContent='要重新開始「'+areas[currentArea].name+'」嗎？';openModal('reset-modal');};
   $('cancel-reset').onclick=()=>$('reset-modal').classList.add('hidden');
-  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];bombs.clear();bursts.length=0;built=0;usedColors.clear();achievements=0;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
+  $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];bombs.clear();bursts.length=0;built=0;removed=0;blasted=0;usedColors.clear();achievements=0;questExpanded=null;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
   document.addEventListener('contextmenu',e=>e.preventDefault());
   function handleKeyDown(e) {
-    if(e.code==='Escape') { $('help-modal').classList.add('hidden');$('reset-modal').classList.add('hidden');keys.clear();held.clear();return; }
+    if(e.code==='Escape') { for(const id of ['help-modal','reset-modal','controller-modal'])$(id).classList.add('hidden');setTools(false);clearMovement();return; }
     if(!canAct()) return;
     if(e.target&&['SELECT','INPUT','TEXTAREA'].includes(e.target.tagName))return;
-    if((e.code==='ShiftLeft'||e.code==='ShiftRight') && !e.repeat && !keys.has('ShiftLeft') && !keys.has('ShiftRight') && !godView) {
-      const now=Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
-      if(lastShiftPress!==null && now-lastShiftPress>=0 && now-lastShiftPress<=330){falling=true;fallVelocity=0;lastShiftPress=null;showToast('輕輕落地囉！按空白鍵可以停住');}
-      else lastShiftPress=now;
-    }
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight','KeyE','KeyQ','KeyR'].includes(e.code)){e.preventDefault();keys.add(e.code);}
-    if(e.repeat)return;
+    setInputSource('keyboard');
+    const wasHeld=keys.has(e.code),shiftHeld=keys.has('ShiftLeft')||keys.has('ShiftRight');
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyC','ShiftLeft','ShiftRight','KeyE','KeyQ','KeyR','KeyF','KeyZ','KeyP'].includes(e.code)){e.preventDefault();keys.add(e.code);}
+    if(e.repeat||wasHeld)return;
+    if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!shiftHeld)toggleGravity();
+    if(e.code==='Space')jump();
     if(e.code==='KeyE')edit('place');if(e.code==='KeyQ')edit('remove');if(e.code==='KeyZ')undo();if(e.code==='KeyR')pickBlock();
     if(e.code==='KeyF'){e.preventDefault();toggleCamera();}
+    if(e.code==='KeyP')openModal('controller-modal');
     const digit=Number(e.key);if(digit>=1 && digit<=paletteGroups[paletteGroup].length)choose(paletteGroups[paletteGroup][digit-1]);
   }
   document.addEventListener('keydown',handleKeyDown);
   document.addEventListener('keyup',e=>keys.delete(e.code));
-  window.addEventListener('blur',()=>{focused=false;clearMovement();drag=null;audio.setActive(false);});
-  window.addEventListener('focus',()=>{focused=true;if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();});
+  window.addEventListener('blur',()=>{focused=false;lastTime=0;clearMovement();drag=null;audio.setActive(false);});
+  window.addEventListener('focus',()=>{focused=true;lastTime=0;controller.reset();if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();});
   document.querySelectorAll('[data-move]').forEach(b=>{
-    b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(canAct()){held.add(b.dataset.move);b.classList.add('held');}});
+    b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(canAct()){setInputSource('keyboard');if(b.dataset.move==='rise'&&!held.has('rise'))jump();held.add(b.dataset.move);b.classList.add('held');}});
     const release=()=>{held.delete(b.dataset.move);b.classList.remove('held');};b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);
   });
   let drag=null;
-  canvas.addEventListener('pointerdown',e=>{if(!canAct())return;e.preventDefault();positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY,distance:0,button:e.button};});
+  canvas.addEventListener('pointerdown',e=>{if(!canAct())return;setInputSource('keyboard');e.preventDefault();positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY,distance:0,button:e.button};});
   canvas.addEventListener('pointermove',e=>{
     if(!canAct())return;
-    if(!drag){if(e.pointerType!=='touch')positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);return;}
+    if(!drag){if(e.pointerType!=='touch'){setInputSource('keyboard');positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);}return;}
     if(drag.id!==e.pointerId)return;
     const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;drag.distance+=Math.abs(dx)+Math.abs(dy);
     player.yaw+=dx*.005;player.pitch=Math.max(-1.35,Math.min(1.25,player.pitch-dy*.005));
@@ -760,12 +904,20 @@
     if(Number.isFinite(support)){player.y=support+EYE_HEIGHT+EPSILON;return true;}
     player.y=Math.max(MIN_EYE,nextY);return nextY<=MIN_EYE;
   }
+  function raiseTo(nextY) {
+    const oldTop=player.y+HEAD_HEIGHT,newTop=Math.min(FLY_LIMIT,nextY)+HEAD_HEIGHT;let ceiling=Infinity;
+    for(let bx=Math.floor(player.x-BODY_RADIUS+EPSILON);bx<=Math.floor(player.x+BODY_RADIUS-EPSILON);bx++)for(let bz=Math.floor(player.z-BODY_RADIUS+EPSILON);bz<=Math.floor(player.z+BODY_RADIUS-EPSILON);bz++) {
+      for(let by=0;by<MAX_Y;by++)if(by>=oldTop-EPSILON&&by<=newTop+EPSILON&&get(bx,by,bz))ceiling=Math.min(ceiling,by);
+    }
+    player.y=Math.min(FLY_LIMIT,nextY,ceiling-HEAD_HEIGHT-EPSILON);
+    return Number.isFinite(ceiling)||nextY>=FLY_LIMIT;
+  }
   function move(dt) {
-    if(godView)return;
+    if(godView||!Number.isFinite(dt)||dt<=0)return;dt=Math.min(dt,.04);
     const pressed=(name,codes)=>held.has(name)||codes.some(c=>keys.has(c));
-    let forward=Number(pressed('forward',['KeyW','ArrowUp']))-Number(pressed('back',['KeyS','ArrowDown']));
-    let side=Number(pressed('right',['KeyD','ArrowRight']))-Number(pressed('left',['KeyA','ArrowLeft']));
-    const length=Math.hypot(forward,side);if(length){forward/=length;side/=length;}
+    let forward=Number(pressed('forward',['KeyW','ArrowUp']))-Number(pressed('back',['KeyS','ArrowDown']))+padMotion.forward;
+    let side=Number(pressed('right',['KeyD','ArrowRight']))-Number(pressed('left',['KeyA','ArrowLeft']))+padMotion.side;
+    const length=Math.hypot(forward,side);if(length>1){forward/=length;side/=length;}
     const step=dt*4.2, dx=(Math.sin(player.yaw)*forward+Math.cos(player.yaw)*side)*step, dz=(-Math.cos(player.yaw)*forward+Math.sin(player.yaw)*side)*step;
     // A short body fits below a ceiling one block above the floor.
     for(const [axis,delta] of [['x',dx],['z',dz]]) {
@@ -773,24 +925,32 @@
       const nx=axis==='x'?Math.max(.4,Math.min(SIZE-.4,player.x+delta)):player.x;
       const nz=axis==='z'?Math.max(.4,Math.min(SIZE-.4,player.z+delta)):player.z;
       if(!collides(nx,player.y,nz)){player.x=nx;player.z=nz;}
-      else if(!falling && player.y+1.002<=FLY_LIMIT && !collides(nx,player.y+1.002,nz)){player.x=nx;player.z=nz;player.y+=1.002;}
+      else if((!preferences.gravity||onGround()) && player.y+1.002<=FLY_LIMIT && !collides(nx,player.y+1.002,nz)){player.x=nx;player.z=nz;player.y+=1.002;}
     }
-    const rise=Number(pressed('rise',['Space'])),sink=Number(pressed('sink',['ShiftLeft','ShiftRight']));
-    if(rise){falling=false;fallVelocity=0;const ny=Math.min(FLY_LIMIT,player.y+step);if(!collides(player.x,ny,player.z))player.y=ny;}
-    else if(falling){fallVelocity=Math.min(28,fallVelocity+18*dt);if(lowerTo(player.y-fallVelocity*dt)){falling=false;fallVelocity=0;showToast('到地面了！繼續蓋積木吧');}}
-    else if(sink)lowerTo(player.y-step);
+    const rise=pressed('rise',['Space'])||padMotion.rise,sink=pressed('sink',['KeyC'])||padMotion.sink;
+    if(preferences.gravity) {
+      if(sink)verticalVelocity=Math.min(verticalVelocity,-4.2);
+      if(onGround()&&verticalVelocity<=0){lowerTo(player.y-EPSILON*2);verticalVelocity=0;falling=false;return;}
+      verticalVelocity=Math.max(-28,verticalVelocity-18*dt);
+      if(verticalVelocity>0){if(raiseTo(player.y+verticalVelocity*dt))verticalVelocity=0;falling=false;}
+      else {falling=true;if(lowerTo(player.y+verticalVelocity*dt)){verticalVelocity=0;falling=false;}}
+    } else {
+      falling=false;verticalVelocity=0;
+      if(rise)raiseTo(player.y+step);else if(sink)lowerTo(player.y-step);
+    }
   }
   let lastAim='';
   function frame(time) {
     const elapsed=lastTime?Math.max(0,(time-lastTime)/1000):0;lastTime=time;
     if(Math.abs(cameraDistance-preferences.distance)>.0001){cameraDistance+=(preferences.distance-cameraDistance)*(1-Math.exp(-Math.min(elapsed,.04)*10));if(godView)positionGodCamera();}
-    const active=canAct()&&document.visibilityState!=='hidden';audio.setActive(active&&focused);audio.tick();
+    updateController(Math.min(elapsed,.04),time/1000);
+    const active=canAct()&&focused&&document.visibilityState!=='hidden';audio.setActive(active);audio.tick();
     if(active){const dt=Math.min(elapsed,.04);move(dt);updateAvatar(dt);updateBombs(elapsed);}
     if(dirty)rebuild();
     const vp=viewProjection(),eye=cameraEye();
     gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(loc.vp,false,vp);gl.uniform3f(loc.eye,eye.x,eye.y,eye.z);gl.uniform1f(loc.outline,0);gl.uniform2f(loc.fog,godView?200:20,godView?300:58);gl.uniform3f(loc.sky,...areas[currentArea].sky);gl.uniform1f(loc.time,time/1000);bind(mesh);gl.drawArrays(gl.TRIANGLES,0,meshCount);drawPenguin(time);
     hit=raycast();drawOutline(vp);drawBursts(vp);
-    const aim=godView?'上帝視角 · 按「回到原位」繼續玩':hit?'亮框：E 放積木 / Q 拿掉':'靠近積木，再往下看一看';
+    const aim=godView?'上帝視角 · 按「回到原位」繼續玩':hit?(inputSource==='controller'?'亮框：RT 放積木 / LT 拿掉':'亮框：E 放積木 / Q 拿掉'):'靠近積木，再往下看一看';
     if(aim!==lastAim){$('aim-label').textContent=aim;lastAim=aim;}
     requestAnimationFrame(frame);
   }
