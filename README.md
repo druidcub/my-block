@@ -1,10 +1,14 @@
 # 小小方塊世界
 
-適合 5 歲小孩與大人一起玩的 Minecraft 風格 3D 積木遊戲，由一隻不到一格高的立體像素企鵝帶你探索與創作。本遊戲為獨立創作，並非 Mojang 或 Microsoft 官方 Minecraft。
+適合 5 歲小孩與大人一起玩的獨立 3D 積木建造遊戲，由一隻不到一格高的立體像素企鵝帶你探索與創作。
+
+本遊戲由 druidcub 發布，為獨立創作，非 Minecraft 官方產品，未獲 Mojang 或 Microsoft 核准、贊助，亦無隸屬或合作關係。
 
 ## 開始玩
 
-雙擊 `開始遊戲.bat`，或用 Chrome / Edge 開啟 `index.html`。不必安裝套件、不需要網路，也沒有廣告或付費。
+線上遊玩：[小小方塊世界](https://druidcub.github.io/my-block/)。
+
+也可以下載專案，雙擊 `開始遊戲.bat`，或用 Chrome / Edge 開啟 `index.html`。不必安裝套件、不需要網路，也沒有廣告或付費。
 
 ## 操作
 
@@ -112,6 +116,10 @@ Steam Controller 請先把開啟遊戲的 Chrome / Edge 加入 Steam 的「非 S
 
 切換區域會立即保存剛才的作品，再載入另一個區域。切回時會還原素材與位置。復原紀錄在這次遊戲期間也按區域分開；重新開啟遊戲後不保留復原紀錄。
 
+鐵達尼號與台北 101 僅為歷史船舶、城市地標的簡化積木想像場景，非電影內容、官方模型或精確復刻；本遊戲與相關權利人無隸屬、授權合作或贊助關係。
+
+名稱只用於辨識場景靈感，不表示官方認可，也不作為本遊戲品牌。
+
 ## 定時炸彈
 
 在積木箱切到「趣味」，選炸彈，按 E 或「放積木」。三款皆倒數十秒，方塊每一面直接顯示 **10 → 1** 及爆炸範圍，十秒後炸開以它為中心的球形範圍，有短暫彩色粒子與可選的輕柔音效。玩家不會受傷或被推開，底層仍受保護。
@@ -133,7 +141,7 @@ Steam Controller 請先把開啟遊戲的 Chrome / Edge 加入 Steam 的「非 S
 
 ## 存檔
 
-每次放置、拿掉或復原會自動儲存到目前瀏覽器的 localStorage。七個區域使用不同鍵名：`little-block-world-v2:cottage`、`little-block-world-v2:street`、`little-block-world-v2:volcano`、`little-block-world-v2:meadow`、`little-block-world-v2:titanic`、`little-block-world-v2:cars`、`little-block-world-v2:taipei101`。`little-block-world-area-v2` 記住最後選擇的區域。`little-block-world-settings-v1` 另外記住視角、縮放距離、重力、音效、音樂、音量與手把偏好，重建區域不會清除這些偏好。重新開啟同一位置的遊戲，可繼續建造。存檔不會傳上網。
+每次放置、拿掉或復原會自動儲存到目前瀏覽器的 localStorage。七個區域使用不同鍵名：`little-block-world-v2:cottage`、`little-block-world-v2:street`、`little-block-world-v2:volcano`、`little-block-world-v2:meadow`、`little-block-world-v2:titanic`、`little-block-world-v2:cars`、`little-block-world-v2:taipei101`。`little-block-world-area-v2` 記住最後選擇的區域。`little-block-world-settings-v1` 另外記住視角、縮放距離、重力、音效、音樂、音量與手把偏好，重建區域不會清除這些偏好。重新開啟同一位置的遊戲，可繼續建造。存檔不會傳上網。GitHub Pages 的線上版與本機檔案版屬於不同來源，瀏覽器存檔不會自動互通；切換到線上版不會搬移或覆蓋原本本機作品。
 
 舊版 `little-block-world-v1` 作品會自動轉移到「小屋世界」，舊鍵保留作為備份。其他區域不會讀取這份舊存檔；小屋重建後也不會重新載入舊作品。
 
@@ -152,3 +160,13 @@ HTML + CSS + 原生 JavaScript / WebGL；無外部函式庫、無網路字型、
 已安裝 Node.js 的開發者，可以執行 `node tests/game.test.cjs`、`node tests/audio.test.cjs` 與 `node tests/controller.test.cjs`。測試不需要安裝套件，涵蓋重力切換、單次與空中連跳、低天花板與平台落地、碰撞、獨立存檔與統計、成就收合、區域切換、舊存檔轉移、重建隔離、儲存失敗、三種炸彈計時與連鎖復原、企鵝動畫高度、相機避障、縮放瞄準一致性、音訊排程，以及模擬手把的移動、轉頭、建造、素材切換、選單、熱插拔、防飄移與按鍵保護。WebGL 與手機版面另以瀏覽器實測；自動手把測試使用模擬輸入，不代替真實 Steam Controller 的連線驗證。
 
 本遊戲的探索與無限素材方向參考 [Minecraft 創造模式](https://www.minecraft.net/en-us/article/creative-vs-survival-mode)與[不同地形的探索](https://www.minecraft.net/en-us/article/exploring-minecraft)，保留適合幼童的和平玩法。
+
+## 授權與素材說明
+
+本專案可授權的程式與內容採 [MIT License](LICENSE)，允許使用、修改、散布與商用，須保留版權與授權聲明。授權不包含任何第三方商標、品牌或其他第三方權利，也不表示取得 Mojang、Microsoft、地標或船舶相關權利人的授權。
+
+本專案以 AI 輔助開發；企鵝、簡化場景、材質與聲音由本專案程式建立，未打包 Minecraft 的程式、材質包、角色模型、音樂或遊戲檔。來源與第三方名稱說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。AI 輔助內容是否受著作權保護仍依適用法律與人類創意投入而定；MIT 不保證第三方權利已獲清除。
+
+## GitHub Pages 發布
+
+使用 `main` 分支的根目錄作為 GitHub Pages 來源，`.nojekyll` 保持原生 HTML / CSS / JavaScript 的靜態發布；推送更新後會自動部署。

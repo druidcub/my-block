@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="description" content="小小方塊世界：適合親子同玩的獨立 3D 積木建造遊戲，和小企鵝探索七個區域，自由蓋出自己的作品。">
   <meta name="theme-color" content="#bce4f4">
   <title>小小方塊世界 · 我的快樂積木島</title>
   <link rel="stylesheet" href="style.css">
@@ -58,7 +59,7 @@
   </div>
   <div class="build-actions"><button id="remove" class="remove"><span>−</span>拿掉 <small id="remove-key">(Q)</small></button><button id="place" class="place"><span>＋</span>放積木 <small id="place-key">(E)</small></button></div>
   <footer><div class="palette-label">我的積木箱 <div class="palette-tabs" role="group" aria-label="積木分類"><button id="palette-color" class="palette-tab" aria-pressed="true">彩色</button><button id="palette-building" class="palette-tab" aria-pressed="false">建築</button><button id="palette-nature" class="palette-tab" aria-pressed="false">自然</button><button id="palette-fun" class="palette-tab" aria-pressed="false">趣味</button></div></div><div id="palette" class="palette" role="group" aria-label="選擇積木"></div><div id="palette-note" class="palette-note" role="status"></div><div class="control-hint" id="control-hint">WASD 走路 · 拖曳轉頭 · 滾輪縮放 · E 放 / Q 拆 · 空白跳 / 飛 · Shift 重力</div></footer>
-  <div class="modal-backdrop" id="welcome"><section class="modal welcome-card" aria-labelledby="welcome-title"><div class="eyebrow">HELLO, LITTLE BUILDER!</div><div class="welcome-art" aria-hidden="true"><div class="art-cloud c1"></div><div class="art-cloud c2"></div><div class="art-sun"></div><div class="art-island"><div class="art-house"><div class="art-roof"></div><div class="art-window"></div><div class="art-door"></div></div><div class="art-tree"><i></i><b></b></div><span class="art-flower">✿</span></div></div><h2 id="welcome-title">一起蓋出你的夢想！</h2><p>這裡沒有怪物，也不會受傷。<br>帶著小企鵝，用積木蓋出你的想像力。</p><div class="intro-steps"><div><span>✋</span><b>拖一拖</b><small>看看四周</small></div><div><span>▲</span><b>走一走</b><small>探索小島</small></div><div><span>＋</span><b>蓋一蓋</b><small>放上積木</small></div></div><button id="start" class="primary-button">開始玩吧 <span>→</span></button><small class="parent-note">給大人：區域作品分開保存。手把先按一下連線，再按 A 開始；🎮 裡有設定說明。</small></section></div>
+  <div class="modal-backdrop" id="welcome"><section class="modal welcome-card" aria-labelledby="welcome-title"><div class="eyebrow">HELLO, LITTLE BUILDER!</div><div class="welcome-art" aria-hidden="true"><div class="art-cloud c1"></div><div class="art-cloud c2"></div><div class="art-sun"></div><div class="art-island"><div class="art-house"><div class="art-roof"></div><div class="art-window"></div><div class="art-door"></div></div><div class="art-tree"><i></i><b></b></div><span class="art-flower">✿</span></div></div><h2 id="welcome-title">一起蓋出你的夢想！</h2><p>這裡沒有怪物，也不會受傷。<br>帶著小企鵝，用積木蓋出你的想像力。</p><div class="intro-steps"><div><span>✋</span><b>拖一拖</b><small>看看四周</small></div><div><span>▲</span><b>走一走</b><small>探索小島</small></div><div><span>＋</span><b>蓋一蓋</b><small>放上積木</small></div></div><button id="start" class="primary-button">開始玩吧 <span>→</span></button><small class="parent-note">給大人：區域作品分開保存。手把先按一下連線，再按 A 開始；🎮 裡有設定說明。</small><p class="parent-note">本遊戲由 druidcub 發布，為獨立創作，非 Minecraft 官方產品，未獲 Mojang 或 Microsoft 核准、贊助，亦無隸屬或合作關係。</p></section></div>
   <div class="modal-backdrop hidden" id="help-modal"><section class="modal help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="eyebrow">LET'S BUILD SOMETHING</div><h2 id="help-title">小小建築師的工具箱</h2>
     <div class="help-grid">
@@ -74,6 +75,7 @@
       <p><b>聲音與音樂</b>右上 ♪ 音效 / ♫ 背景音樂分開開關<label class="help-volume">音量 <input id="help-volume" type="range" min="0" max="85" step="5" value="55" aria-label="說明中的音量"></label></p>
     </div>
     <p class="help-note">積木無限、沒有敵人或付費，玩家不會受傷。選單、說明、背景分頁與離開視窗時暫停重力和倒數。復原後的炸彈顯示「停」，仍可被其他炸彈引爆。累計操作不因復原而扣除；新世界只清除目前區域的作品和統計。</p>
+    <p class="help-note">本遊戲由 druidcub 發布，為獨立創作，非 Minecraft 官方產品，未獲 Mojang 或 Microsoft 核准、贊助，亦無隸屬或合作關係。<br>鐵達尼號與台北 101 僅為歷史船舶、城市地標的簡化積木想像場景，非電影內容、官方模型或精確復刻；本遊戲與相關權利人無隸屬、授權合作或贊助關係。<br>程式與可授權內容採 <a href="LICENSE" target="_blank" rel="noopener">MIT License</a>；第三方名稱與權利不在授權範圍內。<a href="THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">素材與名稱說明</a></p>
     <button id="close-help" class="primary-button">我知道了，繼續玩</button>
   </section></div>
   <div class="modal-backdrop hidden" id="controller-modal"><section class="modal controller-card" role="dialog" aria-modal="true" aria-labelledby="controller-title">

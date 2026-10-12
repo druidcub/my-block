@@ -30,9 +30,9 @@
     street:{name:'道路街景',icon:'▤',hint:'逛街、看車子，蓋出你喜歡的城市。',idea:'替街道蓋一間商店或公車站',sky:[.76,.87,.94],spawn:{x:20.5,y:6,z:35.5,yaw:0,pitch:-.45},material:16},
     volcano:{name:'火山口',icon:'▲',hint:'安全的岩漿與火山，出發去探險！',idea:'蓋一座觀景台或跨過岩漿的橋',sky:[.94,.80,.68],spawn:{x:20.5,y:17.5,z:28.5,yaw:0,pitch:-.83},material:18},
     meadow:{name:'平坦草地',icon:'▱',hint:'一大片空白草地，全部交給你的想像。',idea:'從草地開始，蓋出自己的夢想小屋',sky:[.75,.90,.87],spawn:{x:20.5,y:3.722,z:29.5,yaw:0,pitch:-.4},material:6},
-    titanic:{name:'鐵達尼號',icon:'⚓',hint:'四座煙囪的大船！上甲板、蓋船艙。',idea:'替大船加一間船艙或漂亮的甲板',sky:[.73,.87,.94],spawn:{x:37.5,y:20,z:37.5,yaw:-.72,pitch:-.38},material:12},
+    titanic:{name:'鐵達尼號',icon:'⚓',hint:'四座煙囪的大船！積木想像，非官方模型。',idea:'替大船加一間船艙或漂亮的甲板',sky:[.73,.87,.94],spawn:{x:37.5,y:20,z:37.5,yaw:-.72,pitch:-.38},material:12},
     cars:{name:'汽車世界',icon:'▰',hint:'賽道、停車場與彩色車子，打造車車樂園。',idea:'蓋一輛夢想車或自己的車庫',sky:[.77,.90,.91],spawn:{x:20.5,y:9,z:37.5,yaw:0,pitch:-.4},material:9},
-    taipei101:{name:'台北 101',icon:'▥',hint:'飛到高高的塔頂，看看城市與廣場！',idea:'替 101 蓋一座空中花園或新廣場',sky:[.76,.87,.94],spawn:{x:35.5,y:20,z:38.5,yaw:-.69,pitch:.12},material:20}
+    taipei101:{name:'台北 101',icon:'▥',hint:'飛到高高的塔頂！積木想像，非官方模型。',idea:'替 101 蓋一座空中花園或新廣場',sky:[.76,.87,.94],spawn:{x:35.5,y:20,z:38.5,yaw:-.69,pitch:.12},material:20}
   };
   let currentArea = 'cottage';
   try { const last=localStorage.getItem(AREA_META_KEY);if(Object.hasOwn(areas,last))currentArea=last; } catch { /* Offline play works without storage. */ }
