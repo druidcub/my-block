@@ -184,3 +184,5 @@ GitHub Pages 線上版支援 PWA。Android 可從 Chrome / Edge 選單選「安�
 開發更新：任何離線快取檔案改變時，請一併更新 `sw.js` 的 `VERSION`。新增遊戲資源時同步加入 `FILES`。`manifest.webmanifest` 的相對路徑可用於 GitHub Pages 的 `/my-block/` 子目錄。安裝圖示由 `tools/generate-icons.py` 以本遊戲企鵝的方塊外觀繪製；重建圖示需要 Python 與 Pillow，遊玩不需要這些工具。
 
 驗證手勢與離線行為：`node tests/touch.test.cjs`、`node tests/pwa.test.cjs`，另保留原本的遊戲、音效與手把測試。
+
+手機 / 平板及寬度 900px 以下的版型將左側區域、成就面板收成「區域」與「成就」兩顆按鈕。點區域按鈕開啟七個世界的選擇卡片，選擇後自動回到遊戲；成就按鈕則顯示目前區域的星星、任務與蓋／拿掉／炸開統計。功能視窗開啟時暫停操作、重力與炸彈倒數，按「繼續玩」、Escape 或手把 B 返回。寬螢幕仍保留原本的面板。

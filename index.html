@@ -29,6 +29,10 @@
       <button id="help" class="icon-button" aria-label="遊戲說明" title="遊戲說明">?</button>
     </div>
   </header>
+  <div class="mobile-panel-actions" aria-label="區域與成就工具">
+    <button id="mobile-explore" aria-label="探索區域" aria-haspopup="dialog" aria-expanded="false" aria-controls="explore-modal"><span id="mobile-area-icon" aria-hidden="true">⌂</span><small>區域</small></button>
+    <button id="mobile-achievements" aria-label="小小建築師成就" aria-haspopup="dialog" aria-expanded="false" aria-controls="achievements-modal"><span aria-hidden="true">★</span><small>成就</small></button>
+  </div>
   <aside class="region-panel" aria-label="區域選擇"><div class="region-heading"><label for="area-select">探索區域</label><span id="area-save-note">各區域獨立存檔</span></div><div class="region-select-row"><span id="area-icon" aria-hidden="true">⌂</span><select id="area-select" aria-label="選擇區域"><option value="cottage">小屋世界</option><option value="street">道路街景</option><option value="volcano">火山口</option><option value="meadow">平坦草地</option><option value="titanic">鐵達尼號</option><option value="cars">汽車世界</option><option value="taipei101">台北 101</option></select></div><p id="area-hint">小屋、樹木與池塘，替家添一點顏色。</p></aside>
   <aside class="quest" id="quest-panel" aria-label="目前區域的成就與統計">
     <button id="quest-toggle" class="quest-toggle" aria-expanded="true" aria-controls="quest-body" aria-label="收合小小建築師成就清單">
@@ -66,6 +70,20 @@
   <div class="build-actions"><button id="remove" class="remove"><span>−</span>拿掉 <small id="remove-key">(Q)</small></button><button id="place" class="place"><span>＋</span>放積木 <small id="place-key">(E)</small></button></div>
   <footer><div class="palette-label">我的積木箱 <div class="palette-tabs" role="group" aria-label="積木分類"><button id="palette-color" class="palette-tab" aria-pressed="true">彩色</button><button id="palette-building" class="palette-tab" aria-pressed="false">建築</button><button id="palette-nature" class="palette-tab" aria-pressed="false">自然</button><button id="palette-fun" class="palette-tab" aria-pressed="false">趣味</button></div></div><div id="palette" class="palette" role="group" aria-label="選擇積木"></div><div id="palette-note" class="palette-note" role="status"></div><div class="control-hint" id="control-hint">WASD 走路 · 拖曳轉頭 · 滾輪縮放 · E 放 / Q 拆 · 空白跳 / 飛 · Shift 重力</div></footer>
   <div class="modal-backdrop" id="welcome"><section class="modal welcome-card" aria-labelledby="welcome-title"><div class="eyebrow">HELLO, LITTLE BUILDER!</div><div class="welcome-art" aria-hidden="true"><div class="art-cloud c1"></div><div class="art-cloud c2"></div><div class="art-sun"></div><div class="art-island"><div class="art-house"><div class="art-roof"></div><div class="art-window"></div><div class="art-door"></div></div><div class="art-tree"><i></i><b></b></div><span class="art-flower">✿</span></div></div><h2 id="welcome-title">一起蓋出你的夢想！</h2><p>這裡沒有怪物，也不會受傷。<br>帶著小企鵝，用積木蓋出你的想像力。</p><div class="intro-steps"><div><span>✋</span><b>拖一拖</b><small>看看四周</small></div><div><span>▲</span><b>走一走</b><small>探索小島</small></div><div><span>＋</span><b>蓋一蓋</b><small>放上積木</small></div></div><button id="start" class="primary-button">開始玩吧 <span>→</span></button><small class="parent-note">給大人：區域作品分開保存。手把先按一下連線，再按 A 開始；🎮 裡有設定說明。</small><p class="parent-note">本遊戲由 druidcub 發布，為獨立創作，非 Minecraft 官方產品，未獲 Mojang 或 Microsoft 核准、贊助，亦無隸屬或合作關係。</p></section></div>
+  <div class="modal-backdrop hidden" id="explore-modal"><section class="modal compact-panel-card" role="dialog" aria-modal="true" aria-labelledby="explore-title">
+    <div class="eyebrow">LET'S EXPLORE</div><h2 id="explore-title">探索區域</h2>
+    <p class="panel-note">選一個世界出發，每個區域的作品分開保存。</p>
+    <div id="area-choices" class="area-choices" role="group" aria-label="選擇探索區域"></div>
+    <button id="close-explore" class="primary-button panel-close">繼續玩</button>
+  </section></div>
+  <div class="modal-backdrop hidden" id="achievements-modal"><section class="modal compact-panel-card" role="dialog" aria-modal="true" aria-labelledby="achievements-title">
+    <div class="eyebrow">LITTLE BUILDER</div><h2 id="achievements-title">小小建築師</h2>
+    <p id="mobile-achievement-area" class="panel-note"></p><div id="mobile-achievement-stars" class="mobile-achievement-stars" aria-label="成就星星">☆ ☆ ☆</div>
+    <ul class="achievement-list mobile-achievement-list"><li id="mobile-achievement-first"></li><li id="mobile-achievement-eight"></li><li id="mobile-achievement-colors"></li></ul>
+    <p id="mobile-achievement-detail" class="panel-note"></p>
+    <div class="build-stats modal-build-stats" aria-label="本區域累計操作"><span><strong id="mobile-built-count">0</strong>蓋了</span><span><strong id="mobile-removed-count">0</strong>拿掉</span><span><strong id="mobile-blasted-count">0</strong>炸開</span></div>
+    <button id="close-achievements" class="primary-button panel-close">繼續玩</button>
+  </section></div>
   <div class="modal-backdrop hidden" id="help-modal"><section class="modal help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="eyebrow">LET'S BUILD SOMETHING</div><h2 id="help-title">小小建築師的工具箱</h2>
     <div class="help-grid">
@@ -73,9 +91,9 @@
       <p><b>放積木 / 拿掉</b>對準黃色亮框，E 放、Q 拆<br>也能用大按鈕；R 選取準心指向的素材</p>
       <p><b>Shift 切換重力</b>按一下會落地，再按一下恢復飄浮<br>右側會顯示目前模式，落地不會受傷</p>
       <p><b>空白跳躍 / 飛高</b>重力模式：按一下跳，連按持續飛高<br>飄浮模式：按住飛高，C 飛低，放開就停住</p>
-      <p><b>我的成就與統計</b>點「小小建築師」展開或收合<br>任務完成會自動收合；蓋、拿掉、炸開的累計數字仍可看到</p>
+      <p><b>我的成就與統計</b>手機 / 平板按左上 ★ 成就查看；電腦可展開或收合<br>任務完成會自動收合；蓋、拿掉、炸開的累計數字仍可看到</p>
       <p><b>視角和其他工具</b>右側「工具」有視角、上帝視角、回起點與新世界<br>F 可直接切換企鵝 / 第一人稱</p>
-      <p><b>七個區域</b>左上選擇世界，作品和成就分開保存<br>「新世界」只重建目前區域</p>
+      <p><b>七個區域</b>手機 / 平板按左上「區域」選世界<br>作品和成就分開保存，「新世界」只重建目前區域</p>
       <p><b>三款定時炸彈</b>趣味箱：紅色 2 格、紫色 5 格、藍色 10 格<br>10 秒倒數，可連鎖引爆；一次復原整串爆炸</p>
       <p><b>手把也可以玩</b>A 跳 / 飛，B 切換重力，RT 放、LT 拆<br>左搖桿走，右搖桿 / 觸控板轉頭；Menu 開啟手把選單</p>
       <p><b>聲音與音樂</b>右上 ♪ 音效 / ♫ 背景音樂分開開關<label class="help-volume">音量 <input id="help-volume" type="range" min="0" max="85" step="5" value="55" aria-label="說明中的音量"></label></p>

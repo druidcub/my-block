@@ -9,6 +9,7 @@
   const SIZE = 40, MAX_Y = 40, FLY_LIMIT = 38, LEGACY_SAVE_KEY = 'little-block-world-v1';
   const SAVE_PREFIX = 'little-block-world-v2:', AREA_META_KEY = 'little-block-world-area-v2';
   const SETTINGS_KEY='little-block-world-settings-v1';
+  const modalIds=['help-modal','reset-modal','controller-modal','explore-modal','achievements-modal'];
   const preferences={thirdPerson:true,distance:3.6,sfx:false,music:false,volume:.55,gravity:false,controllerProfile:'steam',controllerSensitivity:1,controllerDeadzone:.16,controllerAllowRaw:false,controllerLookAxis:2};
   try {
     const saved=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null');
@@ -324,7 +325,7 @@
     $('area-icon').textContent=area.icon;$('area-save-note').textContent='各區域獨立存檔';
     $('home').innerHTML='⌂<span>'+(currentArea==='cottage'?'回小屋':'回起點')+'</span>';
     $('home').title=currentArea==='cottage'?'回到小屋':'回到目前區域的起點';
-    const sky=area.sky;gl.clearColor(...sky,1);
+    const sky=area.sky;gl.clearColor(...sky,1);updateMobilePanels();
   }
   function switchArea(area) {
     if(!Object.hasOwn(areas,area)||area===currentArea)return;
@@ -515,6 +516,7 @@
     canvas.width=Math.floor(innerWidth*ratio); canvas.height=Math.floor(innerHeight*ratio); gl.viewport(0,0,canvas.width,canvas.height);
     outlineCanvas.width=canvas.width;outlineCanvas.height=canvas.height;outlineContext.setTransform(canvas.width/innerWidth,0,0,canvas.height/innerHeight,0,0);
     positionAim(aimOffset.x,aimOffset.y);
+    if(started)updateQuestPanel();
   }
   window.addEventListener('resize',resize);
   gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.clearColor(.74,.88,.92,1); resize();
@@ -629,7 +631,8 @@
     $('quest-body').classList.toggle('hidden',!questExpanded);$('quest-panel').classList.toggle('compact',!questExpanded);
     $('quest-toggle').setAttribute('aria-expanded',String(questExpanded));$('quest-toggle').setAttribute('aria-label',(questExpanded?'收合':'展開')+'小小建築師成就清單');
     $('quest-chevron').textContent=questExpanded?'⌃':'⌄';
-    $('controller-achievements').textContent=questExpanded?'收合成就清單':'展開成就清單';
+    $('controller-achievements').textContent=compactPanels()?'查看成就清單':questExpanded?'收合成就清單':'展開成就清單';
+    updateMobilePanels();
   }
   function canAct() { return started && !document.querySelector('.modal-backdrop:not(.hidden)'); }
   function occupied(x,y,z) {
@@ -758,11 +761,31 @@
   function setTools(expanded) {
     $('extra-tools').classList.toggle('hidden',!expanded);$('tools-toggle').setAttribute('aria-expanded',String(expanded));
   }
+  function compactPanels(){return typeof window.matchMedia==='function'&&window.matchMedia('(max-width: 900px)').matches;}
+  function mobileTrigger(id){return id==='explore-modal'?'mobile-explore':id==='achievements-modal'?'mobile-achievements':null;}
+  function updateMobilePanels(){
+    const area=areas[currentArea];$('mobile-area-icon').textContent=area.icon;
+    $('mobile-explore').setAttribute('aria-label','探索區域，目前是'+area.name);$('mobile-explore').title='探索區域：'+area.name;
+    $('mobile-achievements').setAttribute('aria-label','小小建築師，'+area.name+'，已得'+achievements+'顆星');
+    $('mobile-achievement-area').textContent=area.name+' · 成就與統計';
+    $('mobile-achievement-stars').textContent=$('stars').textContent;
+    $('mobile-achievement-detail').textContent=$('quest-detail').textContent;
+    for(const suffix of ['first','eight','colors']){
+      const source=$('achievement-'+suffix),target=$('mobile-achievement-'+suffix);
+      target.textContent=source.textContent;target.classList.toggle('earned',source.classList.contains('earned'));
+    }
+    for(const suffix of ['built','removed','blasted']){
+      const source=$(suffix+'-count'),target=$('mobile-'+suffix+'-count');target.textContent=source.textContent;target.setAttribute('aria-label',source.getAttribute('aria-label')||'');
+    }
+    $('area-choices').querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.area===currentArea)));
+  }
+  function closeMobilePanel(id){$(id).classList.add('hidden');clearMovement();const trigger=mobileTrigger(id);if(trigger){$(trigger).setAttribute('aria-expanded','false');$(trigger).focus();}}
   function openModal(id) {
-    for(const other of ['help-modal','reset-modal','controller-modal'])$(other).classList.add('hidden');
+    for(const other of modalIds){$(other).classList.add('hidden');const trigger=mobileTrigger(other);if(trigger)$(trigger).setAttribute('aria-expanded','false');}
     if(id==='controller-modal')$('controller-area').value=currentArea;
-    $(id).classList.remove('hidden');clearMovement();setTools(false);
-    const first=id==='controller-modal'?$('controller-resume'):id==='reset-modal'?$('cancel-reset'):$('close-help');first.focus();
+    updateMobilePanels();$(id).classList.remove('hidden');clearMovement();setTools(false);
+    const trigger=mobileTrigger(id);if(trigger)$(trigger).setAttribute('aria-expanded','true');
+    const first=id==='explore-modal'?$('close-explore'):id==='achievements-modal'?$('close-achievements'):id==='controller-modal'?$('controller-resume'):id==='reset-modal'?$('cancel-reset'):$('close-help');first.focus();
   }
   function closeControllerMenu(){$('controller-modal').classList.add('hidden');clearMovement();}
   function controllerQuick(action){closeControllerMenu();action();}
@@ -777,7 +800,7 @@
   function handleControllerMenu(state,modal) {
     if(state.pressed.has(padButtons.gravity)||state.pressed.has(padButtons.menu)) {
       if(modal.id==='reset-modal')$('cancel-reset').onclick();
-      else modal.classList.add('hidden');clearMovement();return;
+      else if(mobileTrigger(modal.id))closeMobilePanel(modal.id);else modal.classList.add('hidden');clearMovement();return;
     }
     const choices=Array.from(modal.querySelectorAll('button,select,input,summary')).filter(e=>!e.disabled&&e.getClientRects().length);
     if(!choices.length)return;
@@ -833,6 +856,15 @@
   updateInputHints();
   $('gravity').onclick=toggleGravity;
   $('quest-toggle').onclick=()=>{questExpanded=!questExpanded;updateQuestPanel();};
+  $('mobile-explore').onclick=()=>openModal('explore-modal');
+  $('mobile-achievements').onclick=()=>openModal('achievements-modal');
+  $('close-explore').onclick=()=>closeMobilePanel('explore-modal');
+  $('close-achievements').onclick=()=>closeMobilePanel('achievements-modal');
+  for(const [id,area] of Object.entries(areas)){
+    const button=document.createElement('button');button.className='area-choice';button.dataset.area=id;
+    button.innerHTML='<span aria-hidden="true">'+area.icon+'</span><b>'+area.name+'</b><small>'+area.hint+'</small>';
+    button.onclick=()=>{closeMobilePanel('explore-modal');switchArea(id);};$('area-choices').appendChild(button);
+  }
   $('tools-toggle').onclick=()=>setTools($('extra-tools').classList.contains('hidden'));
   $('controller-toggle').onclick=()=>openModal('controller-modal');
   $('controller-resume').onclick=closeControllerMenu;
@@ -840,7 +872,7 @@
   $('controller-camera').onclick=()=>controllerQuick(toggleCamera);
   $('controller-god').onclick=()=>controllerQuick(toggleGodView);
   $('controller-home').onclick=()=>controllerQuick(home);
-  $('controller-achievements').onclick=()=>controllerQuick(()=>{questExpanded=!questExpanded;updateQuestPanel();});
+  $('controller-achievements').onclick=()=>controllerQuick(()=>{if(compactPanels())openModal('achievements-modal');else {questExpanded=!questExpanded;updateQuestPanel();}});
   $('controller-help').onclick=()=>openModal('help-modal');
   $('controller-reset').onclick=()=>controllerQuick(()=>$('reset').onclick());
   $('controller-area').innerHTML=$('area-select').innerHTML;
@@ -857,7 +889,7 @@
   $('confirm-reset').onclick=()=>{clearTimeout(saveTimer);changes={};history=[];bombs.clear();bursts.length=0;built=0;removed=0;blasted=0;usedColors.clear();achievements=0;questExpanded=null;makeWorld();dirty=true;home();choose(areas[currentArea].material);updateQuests();saveNow();$('reset-modal').classList.add('hidden');showToast(areas[currentArea].name+'重新開始了，其他區域都保留！');};
   document.addEventListener('contextmenu',e=>e.preventDefault());
   function handleKeyDown(e) {
-    if(e.code==='Escape') { for(const id of ['help-modal','reset-modal','controller-modal'])$(id).classList.add('hidden');setTools(false);clearMovement();return; }
+    if(e.code==='Escape') { for(const id of modalIds){if(mobileTrigger(id)&&!$(id).classList.contains('hidden'))closeMobilePanel(id);else $(id).classList.add('hidden');}setTools(false);clearMovement();return; }
     if(!canAct()) return;
     if(e.target&&['SELECT','INPUT','TEXTAREA'].includes(e.target.tagName))return;
     setInputSource('keyboard');

@@ -1,6 +1,6 @@
 'use strict';
 // Bump the version whenever a cached file changes. Install the whole release atomically.
-const VERSION='2026-10-13-2';
+const VERSION='2026-10-13-3';
 const PREFIX='my-block:'+self.registration.scope+':';
 const CACHE=PREFIX+VERSION;
 const FILES=['index.html','style.css','game.js','penguin.js','audio.js','controller.js','touch.js','pwa.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png','icons/apple-touch-icon.png','LICENSE','THIRD_PARTY_NOTICES.md'];
