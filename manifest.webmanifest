@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "小小方塊世界",
+  "short_name": "方塊世界",
+  "description": "和小企鵝一起探索與建造的親子積木遊戲",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#bce4f4",
+  "theme_color": "#bce4f4",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

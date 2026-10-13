@@ -23,7 +23,7 @@
   const audio=window.BlockAudio.create(preferences);
   const controller=window.BlockController.create(),padButtons=window.BlockController.BUTTON;
   const padMotion={forward:0,side:0,rise:false,sink:false};
-  let inputSource='keyboard',lastControllerStatus='';
+  let inputSource='keyboard',lastControllerStatus='',touchControls=null;
   let cameraDistance=preferences.distance;
   const areas = {
     cottage:{name:'小屋世界',icon:'⌂',hint:'小屋、樹木與池塘，替家添一點顏色。',idea:'替小屋蓋個花園或小陽台',sky:[.74,.88,.92],spawn:{x:20.5,y:8,z:32.5,yaw:0,pitch:-.29},material:6},
@@ -706,7 +706,7 @@
     for(const edit of item.edits){set(...edit.xyz,edit.before);changes[edit.xyz.join(',')]=edit.before;bombs.delete(edit.xyz.join(','));}
     bursts.length=0;dirty=true;scheduleSave();playTone('undo');showToast(item.kind==='explosion'?'爆炸已復原！炸彈已停止，再放一次才會倒數':'上一個動作復原了！');
   }
-  function clearMovement() { keys.clear();held.clear();Object.assign(padMotion,{forward:0,side:0,rise:false,sink:false});controller.reset();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
+  function clearMovement() { touchControls?.reset();keys.clear();held.clear();Object.assign(padMotion,{forward:0,side:0,rise:false,sink:false});controller.reset();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held')); }
   function updateGodView() {
     const active=Boolean(godView),button=$('god-view');
     button.innerHTML=active?'◎<span>回到原位</span>':'◎<span>上帝視角</span>';
@@ -873,23 +873,24 @@
   }
   document.addEventListener('keydown',handleKeyDown);
   document.addEventListener('keyup',e=>keys.delete(e.code));
-  window.addEventListener('blur',()=>{focused=false;lastTime=0;clearMovement();drag=null;audio.setActive(false);});
+  window.addEventListener('blur',()=>{focused=false;lastTime=0;clearMovement();audio.setActive(false);});
   window.addEventListener('focus',()=>{focused=true;lastTime=0;controller.reset();if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();});
   document.querySelectorAll('[data-move]').forEach(b=>{
     b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(canAct()){setInputSource('keyboard');if(b.dataset.move==='rise'&&!held.has('rise'))jump();held.add(b.dataset.move);b.classList.add('held');}});
     const release=()=>{held.delete(b.dataset.move);b.classList.remove('held');};b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);
   });
-  let drag=null;
-  canvas.addEventListener('pointerdown',e=>{if(!canAct())return;setInputSource('keyboard');e.preventDefault();positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY,distance:0,button:e.button};});
-  canvas.addEventListener('pointermove',e=>{
-    if(!canAct())return;
-    if(!drag){if(e.pointerType!=='touch'){setInputSource('keyboard');positionAim(e.clientX-innerWidth/2,e.clientY-innerHeight/2);}return;}
-    if(drag.id!==e.pointerId)return;
-    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;drag.distance+=Math.abs(dx)+Math.abs(dy);
-    player.yaw+=dx*.005;player.pitch=Math.max(-1.35,Math.min(1.25,player.pitch-dy*.005));
+  touchControls=window.BlockTouch.create({
+    active:canAct,
+    aim:(x,y)=>{setInputSource('keyboard');positionAim(x-innerWidth/2,y-innerHeight/2);},
+    turn:(dx,dy)=>{player.yaw+=dx*.005;player.pitch=Math.max(-1.35,Math.min(1.25,player.pitch-dy*.005));},
+    zoom:ratio=>adjustZoom(preferences.distance*(ratio-1)),
+    tap:edit
   });
-  canvas.addEventListener('pointerup',e=>{if(drag&&drag.id===e.pointerId){if(drag.distance<6)edit(drag.button===2?'remove':'place');drag=null;}});
-  canvas.addEventListener('pointercancel',()=>drag=null);
+  canvas.addEventListener('pointerdown',e=>{if(!canAct())return;e.preventDefault();canvas.setPointerCapture(e.pointerId);touchControls.down(e);});
+  canvas.addEventListener('pointermove',touchControls.move);
+  canvas.addEventListener('pointerup',touchControls.up);
+  canvas.addEventListener('pointercancel',touchControls.cancel);
+  canvas.addEventListener('lostpointercapture',touchControls.cancel);
   canvas.addEventListener('wheel',e=>{if(!canAct())return;e.preventDefault();const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?innerHeight:1);adjustZoom(Math.max(-.6,Math.min(.6,delta*.005)));},{passive:false});
   function collides(x,y,z) {
     for(let bx=Math.floor(x-BODY_RADIUS+EPSILON);bx<=Math.floor(x+BODY_RADIUS-EPSILON);bx++) for(let bz=Math.floor(z-BODY_RADIUS+EPSILON);bz<=Math.floor(z+BODY_RADIUS-EPSILON);bz++) for(let by=Math.floor(y-EYE_HEIGHT+EPSILON);by<=Math.floor(y+HEAD_HEIGHT-EPSILON);by++) if(get(bx,by,bz))return true;
@@ -954,6 +955,6 @@
     if(aim!==lastAim){$('aim-label').textContent=aim;lastAim=aim;}
     requestAnimationFrame(frame);
   }
-  document.addEventListener('visibilitychange',()=>{lastTime=0;if(document.visibilityState==='hidden')audio.suspend();else if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();if(started)saveNow();});
+  document.addEventListener('visibilitychange',()=>{lastTime=0;if(document.visibilityState==='hidden'){clearMovement();audio.suspend();}else if(audio.status().ready&&(preferences.sfx||preferences.music))audio.unlock();if(started)saveNow();});
   makeWorld();home();choose(areas[currentArea].material);loadSave();resetAvatar();updateAreaUI();updateQuests();window.BlockPenguin.portrait($('penguin-portrait'),avatar,faces);requestAnimationFrame(frame);
 })();

@@ -24,3 +24,5 @@
 @media(max-height:650px){#quest-body .quest-title,#quest-body #quest-detail,#quest-body .progress-track{display:none}.achievement-list{margin-top:4px}.quest-toggle #stars{font-size:11px}.extra-tools{max-height:calc(100vh - 280px);overflow-y:auto}.controller-card{max-height:94vh}}
 @media(max-height:580px) and (min-width:701px){.side-actions{top:80px;gap:5px}.side-actions>button{height:42px}.side-actions .zoom-controls button{height:24px}}
 .help-volume{white-space:nowrap}.help-volume input{flex:1;width:0}
+
+.pwa-help{background:#edf2e7;border-radius:16px;padding:16px;margin:18px 0;text-align:left}.pwa-help>b{font-size:14px;color:#39785f}.pwa-help p{font-size:11px;line-height:1.8;margin:8px 0}.pwa-help button{font-size:13px;padding:12px 18px}.modal a{color:#39785f;text-decoration:underline}

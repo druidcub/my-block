@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="description" content="小小方塊世界：適合親子同玩的獨立 3D 積木建造遊戲，和小企鵝探索七個區域，自由蓋出自己的作品。">
   <meta name="theme-color" content="#bce4f4">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="方塊世界">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小小方塊世界 · 我的快樂積木島</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -63,7 +69,7 @@
   <div class="modal-backdrop hidden" id="help-modal"><section class="modal help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="eyebrow">LET'S BUILD SOMETHING</div><h2 id="help-title">小小建築師的工具箱</h2>
     <div class="help-grid">
-      <p><b>走路與看四周</b>方向鍵或 WASD；也能按左下箭頭<br>拖曳轉頭，滾輪拉近拉遠；企鵝可鑽過一格高的洞</p>
+      <p><b>走路與看四周</b>方向鍵或 WASD；也能按左下箭頭<br>拖曳轉頭，滾輪或雙指縮放拉近拉遠<br>兩指張開拉近、合攏拉遠；企鵝可鑽過一格高的洞</p>
       <p><b>放積木 / 拿掉</b>對準黃色亮框，E 放、Q 拆<br>也能用大按鈕；R 選取準心指向的素材</p>
       <p><b>Shift 切換重力</b>按一下會落地，再按一下恢復飄浮<br>右側會顯示目前模式，落地不會受傷</p>
       <p><b>空白跳躍 / 飛高</b>重力模式：按一下跳，連按持續飛高<br>飄浮模式：按住飛高，C 飛低，放開就停住</p>
@@ -76,6 +82,7 @@
     </div>
     <p class="help-note">積木無限、沒有敵人或付費，玩家不會受傷。選單、說明、背景分頁與離開視窗時暫停重力和倒數。復原後的炸彈顯示「停」，仍可被其他炸彈引爆。累計操作不因復原而扣除；新世界只清除目前區域的作品和統計。</p>
     <p class="help-note">本遊戲由 druidcub 發布，為獨立創作，非 Minecraft 官方產品，未獲 Mojang 或 Microsoft 核准、贊助，亦無隸屬或合作關係。<br>鐵達尼號與台北 101 僅為歷史船舶、城市地標的簡化積木想像場景，非電影內容、官方模型或精確復刻；本遊戲與相關權利人無隸屬、授權合作或贊助關係。<br>程式與可授權內容採 <a href="LICENSE" target="_blank" rel="noopener">MIT License</a>；第三方名稱與權利不在授權範圍內。<a href="THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">素材與名稱說明</a></p>
+    <div class="pwa-help"><b>加入主畫面，離線也能玩</b><p id="pwa-status" role="status">正在準備離線遊玩。</p><p>Android：瀏覽器選單 → 安裝應用程式。<br>iPhone / iPad：Safari 分享 → 加入主畫面；若有「作為網頁 App 開啟」，請開啟。</p><button id="pwa-install" class="primary-button hidden">安裝到裝置</button></div>
     <button id="close-help" class="primary-button">我知道了，繼續玩</button>
   </section></div>
   <div class="modal-backdrop hidden" id="controller-modal"><section class="modal controller-card" role="dialog" aria-modal="true" aria-labelledby="controller-title">
@@ -100,6 +107,7 @@
   <div id="error" class="modal-backdrop hidden"><section class="modal"><h2>這台電腦暫時無法顯示 3D</h2><p>請使用最新版的 Chrome 或 Edge，並在瀏覽器設定開啟硬體加速，再重新開啟遊戲。</p></section></div>
   <script src="penguin.js"></script>
   <script src="audio.js"></script>
-  <script src="controller.js"></script><script src="game.js"></script>
+  <script src="controller.js"></script><script src="touch.js"></script><script src="game.js"></script>
+  <script src="pwa.js"></script>
 </body>
 </html>
